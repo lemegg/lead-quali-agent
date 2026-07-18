@@ -3,9 +3,14 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import pg from 'pg';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
 // Load environment variables
 dotenv.config();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -741,6 +746,14 @@ app.post('/api/admin/clear', async (req, res) => {
     console.error(err);
     res.status(500).json({ error: 'Failed to clear database.' });
   }
+});
+
+// Serve static assets in production
+app.use(express.static(path.join(__dirname, 'dist')));
+
+// Serve index.html for any request that doesn't match an API route
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
 
 // Start Database and then Listen
