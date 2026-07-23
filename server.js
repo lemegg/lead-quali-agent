@@ -84,45 +84,47 @@ const generateLocalFallbackResponse = (message, history, currentLead) => {
   let email = currentLead.email || '';
   let company = currentLead.company || '';
 
-  // Extract Product
+  // 1. Extract Location & Pincode
+  let pincode = '';
+  const pincodeMatch = message.match(/\b\d{6}\b/);
+  if (pincodeMatch) {
+    pincode = pincodeMatch[0];
+  }
+
+  if (!criteria.location) {
+    if (pincode) {
+      criteria.location = pincode;
+    } else {
+      const locKeywords = ['pune', 'pcmc', 'lonavala', 'mumbai', 'navi mumbai', 'thane', 'delhi', 'bangalore', 'chennai', 'hyderabad', 'kolkata', 'noida', 'gurgaon'];
+      const foundLoc = locKeywords.find(loc => text.includes(loc));
+      if (foundLoc) criteria.location = foundLoc.charAt(0).toUpperCase() + foundLoc.slice(1);
+    }
+  }
+
+  // 2. Extract Product
+  const BULK_CATALOGUE = [
+    "peace lily", "rubber plant", "spider plant", "snake plant", "zz plant",
+    "peperomia green", "syngonium confetti", "monstera broken heart",
+    "fittonia red", "anthurium pink", "dieffenbachia camille",
+    "peperomia obtusifolia", "money plant", "marble money",
+    "golden money", "silver money", "jade plant", "philodendron ring of fire",
+    "philodendron birkin", "black zz", "artificial plant", "car air vent",
+    "refrigerator magnet", "dandelion seed", "pendant necklace", "plantable rakhi",
+    "seed balls", "seed bottle", "seed card", "15 ml glass", "15ml glass",
+    "5 ml glass", "5ml glass", "glass jars", "tealight candles", "cosmetic jars",
+    "gift cards", "seeds card"
+  ];
+
   if (!criteria.product) {
-    if (text.includes('coir pot') || text.includes('pot') || text.includes('pots')) {
-      criteria.product = '4 Inch Coir Pot (1pc) (TA100438)';
-    } else if (text.includes('amaryllis') || text.includes('lily') || text.includes('bulb') || text.includes('bulbs')) {
-      criteria.product = 'Amaryllis & Rain Lily Bulbs Combo (TA101109)';
-    } else if (text.includes('betel') || text.includes('paan') || text.includes('betel paan')) {
-      criteria.product = 'Betel Paan Sapling (TA100483)';
-    } else if (text.includes('jasmine') || text.includes('jasmin')) {
-      criteria.product = 'Arabian Jasmine Plant Sapling (TA100579)';
-    } else if (text.includes('garden kit') || text.includes('kit') || text.includes('kits')) {
-      criteria.product = text.includes('pro') ? "Beginner's Pro Garden Kit (TA100025)" : "Beginner's Basic Garden Kit (TA100023)";
-    } else if (text.includes('bottle') || text.includes('cork')) {
-      criteria.product = '15ml Glass Bottle with Cork (TA100001)';
-    } else if (text.includes('comb') || text.includes('wooden comb')) {
-      criteria.product = 'Anti Hairfall Neem Wooden Comb (TA100009)';
-    } else if (text.includes('palm') || text.includes('areca')) {
-      criteria.product = 'Areca Palm Sapling (TA100482)';
-    } else if (text.includes('seeds') || text.includes('seed')) {
-      criteria.product = text.includes('adenium') ? 'Adenium Seeds (TA100379)' : 'All Season Veggies Seeds Pack (TA100004)';
-    } else if (text.length > 5 && !text.includes('budget') && !text.includes('cost') && !text.includes('timeline') && !text.includes('month') && !text.includes('phone') && !text.includes('+')) {
+    const matchedCatalogItem = BULK_CATALOGUE.find(item => text.includes(item));
+    if (matchedCatalogItem) {
+      criteria.product = matchedCatalogItem.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+    } else if (text.length > 5 && !text.includes('budget') && !text.includes('cost') && !text.includes('timeline') && !text.includes('week') && !text.includes('day') && !text.includes('pincode') && !text.includes('location')) {
       criteria.product = message.substring(0, 50);
     }
   }
 
-  // Extract Budget
-  if (!criteria.budget) {
-    const budgetMatch = message.match(/(\$\d+[\d,]*\s*(k|m|million)?|\d+\s*(usd|dollars|inr|rupees|rs))/i) 
-      || text.match(/(budget|cost|price|pricing)\s*(is|around|about)?\s*(\d+[\d,]*)/i);
-    if (budgetMatch) {
-      criteria.budget = budgetMatch[0];
-    } else if (text.includes('low') || text.includes('personal') || text.includes('hobby') || text.includes('cheap')) {
-      criteria.budget = 'Under Rs. 1,000';
-    } else if (text.includes('no budget') || text.includes('don\'t have')) {
-      criteria.budget = 'None / Unspecified';
-    }
-  }
-
-  // Extract Quantity
+  // 3. Extract Quantity
   if (!criteria.quantity) {
     const qtyMatch = message.match(/(\d+)\s*(units|pots|saplings|bulbs|packs|items|kits|seeds)?/i)
       || text.match(/(qty|quantity|scale|amount|how many)\s*(is|about)?\s*(\d+)/i);
@@ -135,16 +137,25 @@ const generateLocalFallbackResponse = (message, history, currentLead) => {
     }
   }
 
-  // Extract Timeline
+  // 4. Extract Timeline
   if (!criteria.timeline) {
-    if (text.includes('immediate') || text.includes('now') || text.includes('asap') || text.includes('this week') || text.includes('today')) {
-      criteria.timeline = 'Immediate (under 30 days)';
+    if (text.includes('6-8') || text.includes('6 to 8') || text.includes('7 days') || text.includes('8 days') || text.includes('6 days') || (text.includes('week') && !text.includes('weeks'))) {
+      criteria.timeline = '6-8 days';
+    } else if (text.includes('immediate') || text.includes('now') || text.includes('asap') || text.includes('this week') || text.includes('today') || text.includes('1-2') || text.includes('1 day') || text.includes('2 days') || text.includes('3 days')) {
+      criteria.timeline = 'Immediate (1-3 days)';
     } else if (text.includes('month') || text.includes('next month') || text.includes('weeks')) {
-      criteria.timeline = 'Short-term (1-2 months)';
-    } else if (text.includes('season') || text.includes('planting season') || text.includes('monsoon') || text.includes('spring')) {
-      criteria.timeline = 'Seasonal (based on planting cycle)';
-    } else if (text.includes('research') || text.includes('looking') || text.includes('no rush') || text.includes('future')) {
-      criteria.timeline = 'Research / Planning';
+      criteria.timeline = 'Longer (1-2 months)';
+    }
+  }
+
+  // 5. Extract Budget
+  if (!criteria.budget) {
+    const budgetMatch = message.match(/(\$\d+[\d,]*\s*(k|m|million)?|\d+\s*(usd|dollars|inr|rupees|rs))/i) 
+      || text.match(/(budget|cost|price|pricing)\s*(is|around|about)?\s*(\d+[\d,]*)/i);
+    if (budgetMatch) {
+      criteria.budget = budgetMatch[0];
+    } else if (text.includes('low') || text.includes('personal') || text.includes('hobby') || text.includes('cheap')) {
+      criteria.budget = 'Under Rs. 1,000';
     }
   }
 
@@ -158,67 +169,73 @@ const generateLocalFallbackResponse = (message, history, currentLead) => {
   const nameMatch = text.match(/(my name is|i am|this is|call me)\s+([a-zA-Z]+(\s+[a-zA-Z]+)?)/i);
   if (nameMatch && !name) name = nameMatch[2].replace(/\b\w/g, c => c.toUpperCase());
 
-  if (!criteria.location) {
-    const locKeywords = ['bangalore', 'mumbai', 'delhi', 'pune', 'chennai', 'hyderabad', 'kolkata', 'noida', 'gurgaon', 'kerala'];
-    const foundLoc = locKeywords.find(loc => text.includes(loc));
-    if (foundLoc) criteria.location = foundLoc.charAt(0).toUpperCase() + foundLoc.slice(1);
-  }
-
-  if (!company) {
-    const compMatch = text.match(/(work at|nursery name is|nursery|garden center|company)\s+([a-zA-Z0-9\s.]{3,30})/i);
-    if (compMatch) company = compMatch[2].trim().replace(/\b\w/g, c => c.toUpperCase());
-  }
-
-  // Calculate Score
+  // SCORING ENGINE (0-100)
   let score = 0;
-  if (criteria.product) score += 15;
-  if (criteria.quantity) {
-    score += 15;
-    if (criteria.quantity.toLowerCase().includes('bulk') || criteria.quantity.toLowerCase().includes('hundreds') || parseInt(criteria.quantity) > 50) {
-      score += 10;
+
+  // Location Proximity (Up to 30 points)
+  let locationScore = 0;
+  if (criteria.location) {
+    const locLower = criteria.location.toLowerCase();
+    const isPunePincode = pincode && (pincode.startsWith('411') || pincode.startsWith('412'));
+    const isMHPincode = pincode && (pincode.startsWith('400') || pincode.startsWith('410') || pincode.startsWith('413') || pincode.startsWith('414') || pincode.startsWith('415') || pincode.startsWith('416') || pincode.startsWith('421') || pincode.startsWith('422'));
+    
+    if (locLower.includes('pune') || locLower.includes('pcmc') || isPunePincode) {
+      locationScore = 30; // Closer/Pune (High score)
+    } else if (locLower.includes('mumbai') || locLower.includes('lonavala') || locLower.includes('thane') || isMHPincode) {
+      locationScore = 15; // Semi-close (Moderate score)
+    } else {
+      locationScore = 0; // Far (Low score)
     }
   }
-  if (criteria.budget) {
-    score += 20;
-    const cleanBudget = criteria.budget.replace(/[^0-9]/g, '');
-    if (cleanBudget && (parseInt(cleanBudget, 10) >= 5000 || criteria.budget.toLowerCase().includes('k'))) {
-      score += 10;
+  score += locationScore;
+
+  // Product Catalog Matching (Up to 30 points)
+  let productScore = 0;
+  if (criteria.product) {
+    const prodLower = criteria.product.toLowerCase();
+    const matchedCatalog = BULK_CATALOGUE.some(item => prodLower.includes(item));
+    if (matchedCatalog) {
+      productScore = 30; // Matches catalogue (Increased)
+    } else {
+      productScore = 0; // Other items (Decreased)
     }
   }
+  score += productScore;
+
+  // Timeline Proximity (Up to 20 points)
+  let timelineScore = 0;
   if (criteria.timeline) {
-    score += 15;
-    if (criteria.timeline.toLowerCase().includes('immediate') || criteria.timeline.toLowerCase().includes('now')) {
-      score += 15;
+    const timelineLower = criteria.timeline.toLowerCase();
+    const isBest = timelineLower.includes('6-8') || timelineLower.includes('6 to 8') || timelineLower.includes('7 days') || timelineLower.includes('8 days') || timelineLower.includes('6 days') || (timelineLower.includes('week') && !timelineLower.includes('weeks'));
+    if (isBest) {
+      timelineScore = 20; // 6-8 days is best
+    } else {
+      timelineScore = 5; // Less or longer timeline decreases score
     }
   }
+  score += timelineScore;
+
+  // Contact Details (Up to 20 points)
   if (phone) score += 10;
   if (name) score += 5;
   if (email) score += 5;
 
   score = Math.min(score, 100);
 
-  // Qualify dialogue tree
+  // Dialog tree logic (Strictly one question per reply, short and bulleted)
   let reply = '';
-  const isGreeting = text.match(/\b(hi|hello|hey|greetings|good morning|namaste)\b/);
-
-  if (isGreeting && history.length <= 1) {
-    reply = "Hello! I am the QualiFlow lead qualification assistant. I'm here to understand your requirements and pass them to our gardening sales specialists. What plant varieties, seeds, or gardening accessories are you interested in?";
+  if (!criteria.location) {
+    reply = "- Thank you for starting the conversation.\n- What city or region are we shipping to, and what is your delivery pincode?";
   } else if (!criteria.product) {
-    reply = "I understand you are interested in gardening supplies. Which specific products (seeds, coir pots, lily bulbs, betel paan saplings, or garden kits) are you looking to source?";
+    reply = "- Got your location.\n- Which plant varieties or sustainable gifting items from our catalogue would you like to source?";
   } else if (!criteria.quantity) {
-    reply = `Got it, you're interested in ${criteria.product}. To help qualify your request, what is the approximate quantity or volume you are looking to purchase?`;
-  } else if (!criteria.budget) {
-    reply = "Thank you. Do you have an estimated budget range allocated for this gardening/nursery project?";
+    reply = `- Understood, you're interested in ${criteria.product}.\n- What is the approximate quantity or volume you are looking to purchase?`;
   } else if (!criteria.timeline) {
-    reply = "Understood. What is your target timeline or planting season for having these delivered?";
-  } else if (!name && !phone) {
-    reply = "Perfect, I have collected your primary gardening requirements. To pass this profile over to our sales team so they can call you directly, could you please share your full name, location, and phone number?";
-  } else if (!phone) {
-    reply = `Thanks ${name || 'there'}! May I also get your direct contact number so our sales specialist can call you?`;
-  } else if (!criteria.location) {
-    reply = "Thank you. And which city or region should we ship these botanical items to?";
+    reply = "- Thanks for specifying the quantity.\n- What is your target timeline for having these delivered? (Standard best delivery takes 6-8 days)";
+  } else if (!criteria.budget) {
+    reply = "- Thank you.\n- Do you have an estimated budget range allocated for this project?";
   } else {
-    reply = `Thank you, ${name || 'sir/ma\'am'}. I have successfully qualified your requirements. Our sales team will review this and call you directly at ${phone || 'your phone number'} within 24 hours to coordinate shipping. Have a wonderful day!`;
+    reply = `- Thank you, ${name || 'sir/ma\'am'}.\n- I have qualified your requirements with a score of ${score}%.\n- Our sales team will call you at ${phone || 'your phone number'} within 24 hours.`;
   }
 
   return {
@@ -237,7 +254,7 @@ const generateLocalFallbackResponse = (message, history, currentLead) => {
 // 1b. Look Up or Create Lead by Phone/Email (Pre-Chat Lead Form)
 app.post('/api/leads/lookup', async (req, res) => {
   const { name, phone, email, visitorId } = req.body;
-  const initialGreeting = "Hello! I am the QualiFlow lead qualification assistant. I'm here to understand your requirements and pass them to our gardening sales specialists. What plant varieties, seeds, or gardening accessories are you interested in?";
+  const initialGreeting = "- Hello! I am the QualiFlow Botanical Assistant.\n- To start, what is your shipping city and delivery pincode?";
 
   if (!phone) {
     return res.status(400).json({ error: 'Phone number is required.' });
@@ -336,7 +353,7 @@ app.post('/api/leads/lookup', async (req, res) => {
 app.post('/api/leads', async (req, res) => {
   const { visitorId } = req.body;
   const leadId = `lead-${Date.now()}`;
-  const initialGreeting = "Hello! I am the QualiFlow lead qualification assistant. I'm here to understand your requirements and pass them to our gardening sales specialists. What plant varieties, seeds, or gardening accessories are you interested in?";
+  const initialGreeting = "- Hello! I am the QualiFlow Botanical Assistant.\n- To start, what is your shipping city and delivery pincode?";
   
   try {
     let existingName = '';
@@ -516,35 +533,52 @@ app.post('/api/leads/:id/messages', async (req, res) => {
 You are a lead qualification agent named "QualiFlow Botanical Assistant". Your sole task is to carry a polite conversation with a user to qualify their gardening requirements for our sales team.
 You are NOT a sales rep trying to sell actively. Your purpose is to gather details, structure them, and pass them along.
 
-You must gather the following items:
-1. Product interest. Must match or be relevant to our catalog (seeds, bulbs, coir pots, betel paan, jasmine saplings, garden kits, Neem wooden combs).
-2. Quantity, scale, or count (e.g. 500 pots, 20 garden kits).
-3. Budget or annual spending range (critical).
-4. Timeline (e.g., Immediate, planting season, 1-3 months).
-5. Lead's Name and Phone Number (CRITICAL: Sales team will call them).
-6. Location (City, country).
+CRITICAL FORMATTING GUIDELINES:
+- Every conversational message in "reply" MUST be very short and formatted in bullet points (using hyphens "- ").
+- In each reply, you MUST ask EXACTLY ONE question. Do not ask multiple questions at once.
+- The very first parameter you must prioritize gathering is the location and pincode. Ask for this first.
 
-Guidelines:
-- Start with a polite greeting if applicable.
-- Ask questions naturally. Do not interrogate. Ask 1-2 questions at a time.
-- If the user provides info, acknowledge and ask for the next missing piece.
-- Calculate an overall qualification score (0-100) based on conversion likelihood. Large nursery setups, bulk quantities, commercial landscaping, and immediate timelines should receive high scores (>70%). Vague personal hobby inquiries with no budget should receive low scores (<40%).
+You must gather the following items:
+1. Location and Pincode (Ask for this first).
+2. Product interest. Must match or be relevant to our catalog.
+3. Quantity (e.g. 500 pots, 20 plants).
+4. Timeline (e.g., 6-8 days, immediate, 1 month).
+5. Budget or annual spending range.
+
+LEAD SCORING ENGINE RULES (0-100):
+Calculate an overall qualification score (0-100) based on the following strict breakdown:
+1. Product Proximity (Up to 30 points):
+   - We prefer items from our Bulk Catalogues. If the product matches one of these bulk items, score +30 points. If they ask for anything else, score 0 points.
+   - Bulk Catalogue items are:
+     * Indoor Plants: Peace Lily Plant Sapling, Rubber Plant Sapling, Spider Plant Sapling, Snake Plant Sapling, ZZ Plant Sapling, Peperomia Green Plant Sapling, Syngonium Confetti Plant Sapling, Monstera Broken Heart Plant Sapling, Fittonia Red Plant Sapling, Anthurium Pink Plant Sapling, Dieffenbachia Camille Plant Sapling, Peperomia Obtusifolia Variegated Plant Sapling, Money Plant Sapling, Marble Money Plant Sapling, Golden Money Plant Sapling, Silver Money Plant Sapling, Jade Plant Sapling, Philodendron Ring of Fire Plant Sapling, Philodendron Birkin Plant Sapling, Rare Black ZZ Plant Sapling.
+     * Sustainable Gifting: Artificial Plant Car Air Vent Clip / Magnet Refrigerator, Dandelion Seed Wish Pendant Necklace, Plantable Rakhi, Plantable Seed Balls, Sustainable Seed Bottle Gift Pack, Plantable Seed Card Gift Pack, 15 ml Glass Bottle with Cork, 5 ml Glass Bottle with Cork, Small Cute Glass Jars, Floating Tealight Candles, Italian Acrylic Cosmetic Jars with Clear Cap, Gift Cards, Seeds Card (Thank You), Seeds Card (Happy Birthday).
+2. Location Proximity (Up to 30 points):
+   - Pune Proximity: If the location is Pune, PCMC, or any pincode starting with "411" or "412", score +30 points (Closer).
+   - Semi-Close Proximity: If the location is Mumbai, Navi Mumbai, Thane, Lonavala, or any pincode starting with "400", "410", "413", "414", "415", "416", "421", "422", score +15 points.
+   - Far Proximity: Any other location or pincode outside Maharashtra (e.g. Delhi, Bangalore, Chennai, USA), score 0 points.
+3. Timeline Proximity (Up to 20 points):
+   - The absolute best timeline is "6-8 days". If the timeline is exactly 6-8 days (or 7 days), score +20 points.
+   - Any other timeline (less than 6-8 days such as 1-5 days, immediate, asap, OR longer than that such as 1 month, 2 weeks, or unspecified), score +5 points.
+4. Contact Details (Up to 20 points):
+   - Phone (+10 points)
+   - Name (+5 points)
+   - Email (+5 points)
 
 You MUST respond ONLY with a JSON object matching this schema:
 {
-  "reply": "Your next conversational message to the user, politely guiding them through the qualification steps",
-  "score": 85, // Current calculated qualification score (integer 0-100)
+  "reply": "Your next conversational message to the user, politely guiding them through the qualification steps (MUST be short, bulleted, and ask EXACTLY ONE question)",
+  "score": 85, // Calculated qualification score based on rules above (0-100)
   "extractedData": {
     "name": "Extracted name (or empty string if not known)",
     "phone": "Extracted phone number (or empty string if not known)",
     "email": "Extracted email (or empty string if not known)",
-    "company": "Extracted nursery/company name (or empty string if not known)",
+    "company": "Extracted company/nursery name (or empty string if not known)",
     "criteria": {
       "product": "Extracted product/SKU name (or empty string)",
-      "quantity": "Extracted quantity/scale (or empty string)",
+      "quantity": "Extracted quantity (or empty string)",
       "budget": "Extracted budget/pricing info (or empty string)",
       "timeline": "Extracted timeline info (or empty string)",
-      "location": "Extracted city/region/country (or empty string)"
+      "location": "Extracted city/region/country/pincode (or empty string)"
     }
   }
 }
