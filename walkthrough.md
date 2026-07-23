@@ -1,27 +1,29 @@
 # Walkthrough - Neon DB & Gemini Full-Stack Integration
 
-We have successfully cleaned up the Settings UI panel and aligned the seed sandbox tools to communicate with the database backend.
+We have successfully integrated the updated lead qualification rules, prompt guidelines, and catalog scoring overrides.
 
 ---
 
 ## 🛠️ Revisions Implemented
 
-### 1. UI Panel Cleanups (`Settings.jsx`)
-- **Removed Gemini API Integration Block**: Removed the optional API Key input form since the Gemini API key is loaded securely on the backend server from the `.env` file.
-- **Removed Clear Database Action**: Removed the dangerous "Clear Local Database" button from the Settings page.
-- **Mock Seeding Alignment**: Refactored the seed sandbox buttons to call the backend seed API (`addMockLeads('hot' | 'cold')`) directly.
+### 1. Short, Bulleted Responses & Dialogue Flow (`server.js`)
+- **Conversational Tone**: Changed Gemini system prompt instructions and local fallbacks to ensure replies are short and use bullet points (hyphens).
+- **Single Question constraint**: The bot is strictly restricted to asking exactly **one question per reply**.
+- **Initial Location Priority**: Swapped the chatbot's initial greeting message to prioritize getting the shipping city and pincode first.
 
-### 2. Pre-Chat Lead Form (`ChatInterface.jsx`)
-- **UI Overlay**: If no active chat session is authenticated in the visitor's browser tab, they are presented with a premium-themed card requesting their **Full Name**, **Phone Number** (Required), and **Email Address** (Optional).
-- **Styling**: Blends with the beige-olive palette, sitting cleanly on top of the sharp background landscape.
-
-### 3. Backend Lookup API (`server.js` - `/api/leads/lookup`)
-- **Phone/Email Query**: On form submission, the backend queries Neon DB to check if a lead with that phone or email already exists.
-- **If Found**: Retrieves the user's historical profile and loads their entire chat transcript history immediately.
-- **If New**: Creates a new row in the `leads` table with an initial qualification score of `15` (for providing contact details) and logs the bot's initial greeting.
-
-### 4. Isolated Customer Session State (`LeadContext.jsx`)
-- **Key Isolation**: Isolated the customer's chat session storage key (`qualiflow_customer_chat_id` in `sessionStorage`) from the admin's active dashboard selector (`qualiflow_active_chat_id` in `localStorage`). This prevents local tab selection collision during testing.
+### 2. Upgraded Lead Scoring Engine (`server.js`)
+- **Location Proximity (Up to 30 points)**:
+  - Pune / PCMC or pincodes starting with `411`, `412` = Closer (High score: `+30`).
+  - Semi-close Maharashtra (Mumbai, Thane, Lonavala) or pincodes starting with `400`, `410`, `413`-`416`, `421`-`422` = Moderate score (`+15`).
+  - Far locations/pincodes = Low score (`0`).
+- **Timeline Proximity (Up to 20 points)**:
+  - Best timeline = Exactly `6-8 days` (`+20`).
+  - Less than that (urgent/immediate/1-3 days) or longer timelines decrease the score (`+5`).
+- **Bulk Catalogues Matching (Up to 30 points)**:
+  - Boosts the score by `+30` if they ask for items in the allowed Bulk Catalogues (Indoor Plants & Sustainable Gifting items).
+  - Other items decrease the score to `0`.
+- **Contact details (Up to 20 points)**:
+  - Phone (`+10`), Name (`+5`), Email (`+5`).
 
 ---
 
@@ -37,7 +39,7 @@ rendering chunks...
 dist/index.html                  0.99 kB
 dist/assets/index-BFzMNU5u.css  16.82 kB
 dist/assets/index-DlsotxUI.js  190.26 kB
-✓ built in 3.63s
+✓ built in 3.72s
 ```
 
 ### Dev Server Output Logs
@@ -47,28 +49,5 @@ dist/assets/index-DlsotxUI.js  190.26 kB
 [0] ✓ chat_messages table verified.
 [0] ✓ Backend server running on http://localhost:5000
 ```
-
----
-
-## 🚀 How to Run and Test
-
-Both the backend server (port 5000) and the Vite client (port 3000) have been started as a background task.
-
-```bash
-npm run dev
-```
-
-### 1. Test the Chatbot (Customer View)
-- Open `http://localhost:3000/`.
-- The Pre-Chat Form will ask for your Name and Phone Number.
-- Type Name: "Anurag", Phone: "9876543210" and click **Start Consulting Chat**.
-- Send messages to get qualified.
-- Refresh the tab or open a new session with the same credentials; verify that your history is reloaded immediately from Neon DB.
-
-### 2. Test the Admin Portal
-- Open `http://localhost:3000/admin`.
-- Log in with credentials:
-  - **Username**: `admin`
-  - **Password**: `admin123`
-- Verify that "Anurag" appears only once in the list.
-- Click his card to inspect his BANT metrics and view the session transcript.
+Pushed the latest changes to your GitHub Repository:
+`https://github.com/lemegg/lead-quali-agent.git`
