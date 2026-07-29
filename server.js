@@ -225,17 +225,17 @@ const generateLocalFallbackResponse = (message, history, currentLead) => {
   // Dialog tree logic (Strictly one question per reply, short and bulleted)
   let reply = '';
   if (!criteria.location) {
-    reply = "- Thank you for starting the conversation.\n- What city or region are we shipping to, and what is your delivery pincode?";
+    reply = "- Hello! I am the QualiFlow Botanical Assistant.\n- What shipping city and delivery pincode should we ship to?";
   } else if (!criteria.product) {
-    reply = "- Got your location.\n- Which plant varieties or sustainable gifting items from our catalogue would you like to source?";
+    reply = "- Got it.\n- What plants or gifting items do you want to source?";
   } else if (!criteria.quantity) {
-    reply = `- Understood, you're interested in ${criteria.product}.\n- What is the approximate quantity or volume you are looking to purchase?`;
+    reply = `- Selected: ${criteria.product}.\n- What is the quantity you need?`;
   } else if (!criteria.timeline) {
-    reply = "- Thanks for specifying the quantity.\n- What is your target timeline for having these delivered? (Standard best delivery takes 6-8 days)";
+    reply = "- Understood.\n- What is your delivery timeline in days? (Best is 6-8 days)";
   } else if (!criteria.budget) {
-    reply = "- Thank you.\n- Do you have an estimated budget range allocated for this project?";
+    reply = "- Thank you.\n- What is your estimated budget?";
   } else {
-    reply = `- Thank you, ${name || 'sir/ma\'am'}.\n- I have qualified your requirements with a score of ${score}%.\n- Our sales team will call you at ${phone || 'your phone number'} within 24 hours.`;
+    reply = `- Thank you, ${name || 'sir/ma\'am'}.\n- Requirements saved (Score: ${score}%).\n- We will call you at ${phone || 'your number'} within 24 hours.`;
   }
 
   return {
@@ -534,8 +534,10 @@ You are a lead qualification agent named "QualiFlow Botanical Assistant". Your s
 You are NOT a sales rep trying to sell actively. Your purpose is to gather details, structure them, and pass them along.
 
 CRITICAL FORMATTING GUIDELINES:
-- Every conversational message in "reply" MUST be very short and formatted in bullet points (using hyphens "- ").
-- In each reply, you MUST ask EXACTLY ONE question. Do not ask multiple questions at once.
+- KEEP ALL REPLIES EXTREMELY BRIEF (maximum 20-30 words total for the entire response).
+- Every sentence must be a bullet point (starting with a hyphen "- ").
+- In each reply, you MUST ask EXACTLY ONE simple question. No compound or multiple questions.
+- Do not use conversational filler, wordy text, or long paragraphs.
 - The very first parameter you must prioritize gathering is the location and pincode. Ask for this first.
 
 You must gather the following items:
