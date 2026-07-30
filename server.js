@@ -67,6 +67,20 @@ const initializeDatabase = async () => {
     `);
     console.log('✓ chat_messages table verified.');
 
+    // Create products table if it doesn't exist
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS products (
+        id SERIAL PRIMARY KEY,
+        number INT,
+        title VARCHAR(255),
+        sku VARCHAR(100) UNIQUE,
+        variant_price NUMERIC,
+        bulk_price NUMERIC,
+        bulk_enabled BOOLEAN DEFAULT TRUE
+      );
+    `);
+    console.log('✓ products table verified.');
+
     client.release();
   } catch (err) {
     console.error('✗ Database initialization failed:', err.message);
@@ -76,7 +90,7 @@ const initializeDatabase = async () => {
 // ----------------------------------------------------
 // Smart Local Fallback qualification logic
 // ----------------------------------------------------
-const generateLocalFallbackResponse = (message, history, currentLead) => {
+const generateLocalFallbackResponse = (message, history, currentLead, catalogProducts = []) => {
   const text = message.toLowerCase();
   const criteria = { ...currentLead.criteria };
   let name = currentLead.name || '';
@@ -102,18 +116,20 @@ const generateLocalFallbackResponse = (message, history, currentLead) => {
   }
 
   // 2. Extract Product
-  const BULK_CATALOGUE = [
-    "peace lily", "rubber plant", "spider plant", "snake plant", "zz plant",
-    "peperomia green", "syngonium confetti", "monstera broken heart",
-    "fittonia red", "anthurium pink", "dieffenbachia camille",
-    "peperomia obtusifolia", "money plant", "marble money",
-    "golden money", "silver money", "jade plant", "philodendron ring of fire",
-    "philodendron birkin", "black zz", "artificial plant", "car air vent",
-    "refrigerator magnet", "dandelion seed", "pendant necklace", "plantable rakhi",
-    "seed balls", "seed bottle", "seed card", "15 ml glass", "15ml glass",
-    "5 ml glass", "5ml glass", "glass jars", "tealight candles", "cosmetic jars",
-    "gift cards", "seeds card"
-  ];
+  const BULK_CATALOGUE = catalogProducts.length > 0
+    ? catalogProducts.map(p => p.title.toLowerCase())
+    : [
+        "peace lily", "rubber plant", "spider plant", "snake plant", "zz plant",
+        "peperomia green", "syngonium confetti", "monstera broken heart",
+        "fittonia red", "anthurium pink", "dieffenbachia camille",
+        "peperomia obtusifolia", "money plant", "marble money",
+        "golden money", "silver money", "jade plant", "philodendron ring of fire",
+        "philodendron birkin", "black zz", "artificial plant", "car air vent",
+        "refrigerator magnet", "dandelion seed", "pendant necklace", "plantable rakhi",
+        "seed balls", "seed bottle", "seed card", "15 ml glass", "15ml glass",
+        "5 ml glass", "5ml glass", "glass jars", "tealight candles", "cosmetic jars",
+        "gift cards", "seeds card"
+      ];
 
   if (!criteria.product) {
     const matchedCatalogItem = BULK_CATALOGUE.find(item => text.includes(item));
@@ -193,11 +209,20 @@ const generateLocalFallbackResponse = (message, history, currentLead) => {
   let productScore = 0;
   if (criteria.product) {
     const prodLower = criteria.product.toLowerCase();
-    const matchedCatalog = BULK_CATALOGUE.some(item => prodLower.includes(item));
-    if (matchedCatalog) {
-      productScore = 30; // Matches catalogue (Increased)
+    
+    // Check if it matches any catalog item and whether bulk is enabled for it
+    const matchingProduct = catalogProducts.find(p => p.title.toLowerCase().includes(prodLower) || prodLower.includes(p.title.toLowerCase()));
+    
+    if (matchingProduct) {
+      if (matchingProduct.bulk_enabled) {
+        productScore = 30; // Bulk enabled catalog item (Increased)
+      } else {
+        productScore = 10; // Catalog item but bulk disabled
+      }
     } else {
-      productScore = 0; // Other items (Decreased)
+      // Check hardcoded defaults if database is empty
+      const matchedDefault = BULK_CATALOGUE.some(item => prodLower.includes(item));
+      productScore = matchedDefault ? 30 : 0;
     }
   }
   score += productScore;
@@ -509,6 +534,19 @@ app.post('/api/leads/:id/messages', async (req, res) => {
     );
     const history = messagesResult.rows;
 
+    // Fetch live products catalog from database
+    const productsResult = await pool.query('SELECT * FROM products ORDER BY number ASC');
+    const catalogProducts = productsResult.rows;
+
+    let catalogString = "";
+    if (catalogProducts.length > 0) {
+      catalogString = catalogProducts.map(p => 
+        `- SKU: ${p.sku} | Title: ${p.title} | Variant Price: Rs. ${p.variant_price} | Bulk Price: Rs. ${p.bulk_price} | Bulk Enabled: ${p.bulk_enabled}`
+      ).join('\n');
+    } else {
+      catalogString = "- Peace Lily Plant Sapling (SKU: PL-01, Variant Price: Rs. 150, Bulk Price: Rs. 99, Bulk Enabled: true)\n- Rubber Plant Sapling (SKU: RB-02, Variant Price: Rs. 250, Bulk Price: Rs. 180, Bulk Enabled: true)";
+    }
+
     let reply = '';
     let score = currentLead.score;
     let extracted = {
@@ -550,10 +588,7 @@ You must gather the following items:
 LEAD SCORING ENGINE RULES (0-100):
 Calculate an overall qualification score (0-100) based on the following strict breakdown:
 1. Product Proximity (Up to 30 points):
-   - We prefer items from our Bulk Catalogues. If the product matches one of these bulk items, score +30 points. If they ask for anything else, score 0 points.
-   - Bulk Catalogue items are:
-     * Indoor Plants: Peace Lily Plant Sapling, Rubber Plant Sapling, Spider Plant Sapling, Snake Plant Sapling, ZZ Plant Sapling, Peperomia Green Plant Sapling, Syngonium Confetti Plant Sapling, Monstera Broken Heart Plant Sapling, Fittonia Red Plant Sapling, Anthurium Pink Plant Sapling, Dieffenbachia Camille Plant Sapling, Peperomia Obtusifolia Variegated Plant Sapling, Money Plant Sapling, Marble Money Plant Sapling, Golden Money Plant Sapling, Silver Money Plant Sapling, Jade Plant Sapling, Philodendron Ring of Fire Plant Sapling, Philodendron Birkin Plant Sapling, Rare Black ZZ Plant Sapling.
-     * Sustainable Gifting: Artificial Plant Car Air Vent Clip / Magnet Refrigerator, Dandelion Seed Wish Pendant Necklace, Plantable Rakhi, Plantable Seed Balls, Sustainable Seed Bottle Gift Pack, Plantable Seed Card Gift Pack, 15 ml Glass Bottle with Cork, 5 ml Glass Bottle with Cork, Small Cute Glass Jars, Floating Tealight Candles, Italian Acrylic Cosmetic Jars with Clear Cap, Gift Cards, Seeds Card (Thank You), Seeds Card (Happy Birthday).
+   - We prefer items from our Live Product Catalog. If the product matches one of the catalog items (especially ones where Bulk Enabled is true), score +30 points. If they ask for anything else or bulk-disabled items, score 0 points.
 2. Location Proximity (Up to 30 points):
    - Pune Proximity: If the location is Pune, PCMC, or any pincode starting with "411" or "412", score +30 points (Closer).
    - Semi-Close Proximity: If the location is Mumbai, Navi Mumbai, Thane, Lonavala, or any pincode starting with "400", "410", "413", "414", "415", "416", "421", "422", score +15 points.
@@ -585,6 +620,9 @@ You MUST respond ONLY with a JSON object matching this schema:
   }
 }
 
+Live Product Catalog:
+${catalogString}
+
 Current known parameters:
 - Name: "${currentLead.name || ''}"
 - Phone: "${currentLead.phone || ''}"
@@ -602,14 +640,14 @@ Current known parameters:
           role: msg.sender === 'user' ? 'user' : 'model',
           parts: [{ text: msg.text }]
         }));
-
+ 
         const chat = model.startChat({ history: geminiHistory });
         const promptText = `${systemInstruction}\n\nUser Message: "${text}"\nAnalyze the conversation, extract variables, compute the score, and generate your conversational response in the JSON structure.`;
-
+ 
         const result = await chat.sendMessage(promptText);
         const responseText = result.response.text();
         const parsed = JSON.parse(responseText);
-
+ 
         reply = parsed.reply;
         score = parsed.score;
         extracted = {
@@ -621,14 +659,14 @@ Current known parameters:
         };
       } catch (geminiErr) {
         console.error('Gemini API Error, falling back:', geminiErr);
-        const fallback = generateLocalFallbackResponse(text, history, currentLead);
+        const fallback = generateLocalFallbackResponse(text, history, currentLead, catalogProducts);
         reply = `[Gemini API Error: ${geminiErr.message}. Local Assistant fallback active]\n\n` + fallback.reply;
         score = fallback.score;
         extracted = fallback.extractedData;
       }
     } else {
       // Local fallback
-      const fallback = generateLocalFallbackResponse(text, history, currentLead);
+      const fallback = generateLocalFallbackResponse(text, history, currentLead, catalogProducts);
       reply = fallback.reply;
       score = fallback.score;
       extracted = fallback.extractedData;
@@ -781,6 +819,76 @@ app.post('/api/admin/clear', async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to clear database.' });
+  }
+});
+
+
+// 9. Import CSV Catalog Products
+app.post('/api/products/import', async (req, res) => {
+  const { products } = req.body;
+  if (!Array.isArray(products)) {
+    return res.status(400).json({ error: 'Products array is required.' });
+  }
+  try {
+    await pool.query('BEGIN');
+    for (const prod of products) {
+      await pool.query(
+        `INSERT INTO products (number, title, sku, variant_price, bulk_price, bulk_enabled)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         ON CONFLICT (sku) DO UPDATE SET
+           number = EXCLUDED.number,
+           title = EXCLUDED.title,
+           variant_price = EXCLUDED.variant_price,
+           bulk_price = EXCLUDED.bulk_price,
+           bulk_enabled = EXCLUDED.bulk_enabled`,
+        [
+          parseInt(prod.number, 10) || null,
+          prod.title || '',
+          prod.sku || '',
+          parseFloat(prod.variant_price) || 0,
+          parseFloat(prod.bulk_price) || 0,
+          prod.bulk_enabled !== false && prod.bulk_enabled !== 'false'
+        ]
+      );
+    }
+    await pool.query('COMMIT');
+    
+    const result = await pool.query('SELECT * FROM products ORDER BY number ASC');
+    res.json({ success: true, products: result.rows });
+  } catch (err) {
+    await pool.query('ROLLBACK');
+    console.error('Error importing products:', err);
+    res.status(500).json({ error: 'Failed to import products.' });
+  }
+});
+
+// 10. Get All Catalog Products
+app.get('/api/products', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM products ORDER BY number ASC');
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Error fetching products:', err);
+    res.status(500).json({ error: 'Failed to fetch products.' });
+  }
+});
+
+// 11. Update Product Bulk Price / Settings
+app.post('/api/products/:sku/update', async (req, res) => {
+  const { sku } = req.params;
+  const { bulk_price, bulk_enabled } = req.body;
+  try {
+    const result = await pool.query(
+      'UPDATE products SET bulk_price = $1, bulk_enabled = $2 WHERE sku = $3 RETURNING *',
+      [parseFloat(bulk_price) || 0, bulk_enabled === true, sku]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Product not found.' });
+    }
+    res.json({ success: true, product: result.rows[0] });
+  } catch (err) {
+    console.error('Error updating product:', err);
+    res.status(500).json({ error: 'Failed to update product.' });
   }
 });
 

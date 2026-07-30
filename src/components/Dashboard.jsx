@@ -3,16 +3,30 @@ import { useLeads } from '../context/LeadContext';
 import { 
   Users, Sparkles, TrendingUp, AlertCircle, Phone, Mail, 
   MapPin, Calendar, DollarSign, Archive, CheckCircle, Clock, 
-  Copy, Check, LogOut, ChevronRight, MessageSquare 
+  Copy, Check, LogOut, ChevronRight, MessageSquare, Upload, Edit2, Save, X 
 } from 'lucide-react';
 
 const Dashboard = () => {
-  const { leads, threshold, updateLeadStatus, logoutAdmin } = useLeads();
+  const { 
+    leads, 
+    threshold, 
+    updateLeadStatus, 
+    logoutAdmin,
+    products,
+    importProducts,
+    updateProductSettings
+  } = useLeads();
+  
   const [selectedLeadId, setSelectedLeadId] = useState(leads[0]?.id || null);
   const [selectedLeadDetails, setSelectedLeadDetails] = useState(null);
   const [visitorSessions, setVisitorSessions] = useState([]);
   const [filter, setFilter] = useState('All'); // All, Hot, Pending, Archived
   const [copied, setCopied] = useState(false);
+  const [activeTab, setActiveTab] = useState('leads'); // leads, catalog
+  const [editingSku, setEditingSku] = useState(null);
+  const [editBulkPrice, setEditBulkPrice] = useState('');
+  const [editBulkEnabled, setEditBulkEnabled] = useState(true);
+  const [csvError, setCsvError] = useState('');
 
   const selectedLead = leads.find(l => l.id === selectedLeadId) || null;
   const displayLead = selectedLeadDetails || selectedLead;
@@ -122,6 +136,107 @@ const Dashboard = () => {
     updateLeadStatus(leadId, newStatus);
   };
 
+  const handleFileUpload = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (evt) => {
+      const text = evt.target.result;
+      try {
+        const lines = text.split('\n');
+        if (lines.length < 2) {
+          setCsvError('CSV file must have at least a header row and one data row.');
+          return;
+        }
+
+        const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+        
+        if (!headers.some(h => h.includes('sku'))) {
+          setCsvError('CSV file must contain an "sku" column.');
+          return;
+        }
+        if (!headers.some(h => h.includes('title'))) {
+          setCsvError('CSV file must contain a "title" column.');
+          return;
+        }
+
+        const parsedProducts = [];
+        for (let i = 1; i < lines.length; i++) {
+          const line = lines[i].trim();
+          if (!line) continue;
+
+          // Split by comma handling optional quoted values
+          const values = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(v => v.replace(/^"|"$/g, '').trim());
+
+          const prod = {
+            number: i,
+            title: '',
+            sku: '',
+            variant_price: 0,
+            bulk_price: 0,
+            bulk_enabled: true
+          };
+
+          headers.forEach((header, index) => {
+            const val = values[index];
+            if (val === undefined) return;
+
+            if (header.includes('variant') || header === 'variant_price' || (header.includes('price') && !header.includes('bulk'))) {
+              prod.variant_price = parseFloat(val) || 0;
+            } else if (header.includes('bulk') && (header.includes('price') || header === 'bulk_price')) {
+              prod.bulk_price = parseFloat(val) || 0;
+            } else if (header.includes('enabled') || header.includes('bulk enabled') || header === 'bulk_enabled') {
+              prod.bulk_enabled = val.toLowerCase() === 'true' || val === '1' || val.toLowerCase() === 'yes' || val.toLowerCase() === 'checked';
+            } else if (header === 'number' || header === 'no' || header === 'id') {
+              prod.number = parseInt(val, 10) || i;
+            } else if (header === 'title') {
+              prod.title = val;
+            } else if (header === 'sku') {
+              prod.sku = val;
+            }
+          });
+
+          if (prod.sku && prod.title) {
+            parsedProducts.push(prod);
+          }
+        }
+
+        if (parsedProducts.length === 0) {
+          setCsvError('No valid rows could be parsed from the CSV.');
+          return;
+        }
+
+        setCsvError('');
+        const success = await importProducts(parsedProducts);
+        if (success) {
+          alert(`Successfully imported ${parsedProducts.length} products!`);
+        } else {
+          setCsvError('Failed to save imported products to server.');
+        }
+      } catch (err) {
+        console.error('Error parsing CSV:', err);
+        setCsvError('Invalid CSV formatting. Please check the file.');
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const handleEditClick = (product) => {
+    setEditingSku(product.sku);
+    setEditBulkPrice(product.bulk_price);
+    setEditBulkEnabled(product.bulk_enabled);
+  };
+
+  const handleSaveProduct = async (sku) => {
+    const success = await updateProductSettings(sku, editBulkPrice, editBulkEnabled);
+    if (success) {
+      setEditingSku(null);
+    } else {
+      alert('Failed to update product details.');
+    }
+  };
+
   return (
     <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', height: '100%' }}>
       {/* View Header */}
@@ -136,8 +251,46 @@ const Dashboard = () => {
         </button>
       </div>
 
+      {/* Admin Tab Switcher */}
+      <div style={{ display: 'flex', gap: '1rem', borderBottom: '1px solid var(--border-color)', marginBottom: '1.5rem', paddingBottom: '0.5rem' }}>
+        <button 
+          onClick={() => setActiveTab('leads')}
+          style={{
+            background: 'none',
+            border: 'none',
+            borderBottom: activeTab === 'leads' ? '2px solid var(--color-primary-light)' : 'none',
+            color: activeTab === 'leads' ? '#f1f5f9' : 'var(--color-text-muted)',
+            padding: '0.5rem 1rem',
+            cursor: 'pointer',
+            fontWeight: '600',
+            fontSize: '0.9rem',
+            outline: 'none'
+          }}
+        >
+          Leads Feed
+        </button>
+        <button 
+          onClick={() => setActiveTab('catalog')}
+          style={{
+            background: 'none',
+            border: 'none',
+            borderBottom: activeTab === 'catalog' ? '2px solid var(--color-primary-light)' : 'none',
+            color: activeTab === 'catalog' ? '#f1f5f9' : 'var(--color-text-muted)',
+            padding: '0.5rem 1rem',
+            cursor: 'pointer',
+            fontWeight: '600',
+            fontSize: '0.9rem',
+            outline: 'none'
+          }}
+        >
+          Product Catalog
+        </button>
+      </div>
+
       {/* Metrics Row */}
-      <div className="dashboard-grid">
+      {activeTab === 'leads' ? (
+        <>
+          <div className="dashboard-grid">
         <div className="glass-card metric-card">
           <div className="metric-icon-box primary">
             <Users size={22} />
@@ -517,6 +670,157 @@ const Dashboard = () => {
         </div>
 
       </div>
+      </>
+      ) : (
+        <div className="glass-card" style={{ padding: '2rem', flexGrow: 1, display: 'flex', flexDirection: 'column', gap: '1.5rem', overflowY: 'auto' }}>
+          <div className="flex-between" style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: '1.25rem' }}>
+            <div>
+              <h3 style={{ fontSize: '1.25rem', fontFamily: 'var(--font-display)', color: '#f1f5f9', marginBottom: '0.25rem' }}>
+                Inventory Product Catalog
+              </h3>
+              <p style={{ color: 'var(--color-text-muted)', fontSize: '0.85rem' }}>
+                Import CSV spreadsheets containing SKU numbers, titles, and variant prices, then manage bulk pricing thresholds.
+              </p>
+            </div>
+            
+            <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+              <label 
+                className="btn btn-primary" 
+                style={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: '0.5rem', 
+                  cursor: 'pointer',
+                  padding: '0.6rem 1.25rem',
+                  fontSize: '0.85rem'
+                }}
+              >
+                <Upload size={16} />
+                Import CSV File
+                <input 
+                  type="file" 
+                  accept=".csv" 
+                  onChange={handleFileUpload} 
+                  style={{ display: 'none' }} 
+                />
+              </label>
+            </div>
+          </div>
+
+          {csvError && (
+            <div style={{ background: 'var(--color-danger-glow)', border: '1px solid rgba(244,63,94,0.3)', color: '#fda4af', padding: '0.75rem 1rem', borderRadius: '8px', fontSize: '0.85rem' }}>
+              ⚠️ {csvError}
+            </div>
+          )}
+
+          {products.length === 0 ? (
+            <div className="empty-placeholder" style={{ padding: '6rem 1rem', textAlign: 'center' }}>
+              <Upload size={48} style={{ color: 'var(--color-text-muted)', marginBottom: '1rem', opacity: '0.5' }} />
+              <h4 style={{ color: '#e2e8f0', fontSize: '1.1rem', marginBottom: '0.5rem' }}>No Products Loaded</h4>
+              <p style={{ color: 'var(--color-text-muted)', fontSize: '0.85rem', maxWidth: '380px', margin: '0 auto' }}>
+                Please import a `.csv` file with columns for **number, title, sku, variant price, bulk price, bulk enabled** to initialize the AI qualification catalogue.
+              </p>
+            </div>
+          ) : (
+            <div style={{ overflowX: 'auto', flexGrow: 1 }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid var(--border-color)', color: 'var(--color-text-muted)' }}>
+                    <th style={{ padding: '0.75rem 1rem', fontWeight: '700' }}>#</th>
+                    <th style={{ padding: '0.75rem 1rem', fontWeight: '700' }}>SKU</th>
+                    <th style={{ padding: '0.75rem 1rem', fontWeight: '700' }}>Product Name</th>
+                    <th style={{ padding: '0.75rem 1rem', fontWeight: '700' }}>Variant Price</th>
+                    <th style={{ padding: '0.75rem 1rem', fontWeight: '700' }}>Bulk Price</th>
+                    <th style={{ padding: '0.75rem 1rem', fontWeight: '700' }}>Bulk Status</th>
+                    <th style={{ padding: '0.75rem 1rem', fontWeight: '700', textAlign: 'right' }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {products.map((prod, idx) => {
+                    const isEditing = editingSku === prod.sku;
+                    return (
+                      <tr key={prod.sku} style={{ borderBottom: '1px solid rgba(255,255,255,0.02)', verticalAlign: 'middle', transition: 'background 0.2s' }}>
+                        <td style={{ padding: '0.85rem 1rem', color: 'var(--color-text-muted)' }}>{prod.number || idx + 1}</td>
+                        <td style={{ padding: '0.85rem 1rem', fontFamily: 'monospace', fontWeight: '600' }}>{prod.sku}</td>
+                        <td style={{ padding: '0.85rem 1rem', color: '#f1f5f9', fontWeight: '600' }}>{prod.title}</td>
+                        <td style={{ padding: '0.85rem 1rem' }}>Rs. {prod.variant_price}</td>
+                        <td style={{ padding: '0.85rem 1rem' }}>
+                          {isEditing ? (
+                            <input
+                              type="number"
+                              value={editBulkPrice}
+                              onChange={(e) => setEditBulkPrice(e.target.value)}
+                              style={{
+                                background: 'rgba(0,0,0,0.3)',
+                                border: '1px solid var(--border-color)',
+                                borderRadius: '4px',
+                                padding: '0.2rem 0.5rem',
+                                color: '#fff',
+                                width: '80px',
+                                fontSize: '0.85rem'
+                              }}
+                            />
+                          ) : (
+                            <span>Rs. {prod.bulk_price}</span>
+                          )}
+                        </td>
+                        <td style={{ padding: '0.85rem 1rem' }}>
+                          {isEditing ? (
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', cursor: 'pointer' }}>
+                              <input
+                                type="checkbox"
+                                checked={editBulkEnabled}
+                                onChange={(e) => setEditBulkEnabled(e.target.checked)}
+                                style={{ accentColor: 'var(--color-primary)' }}
+                              />
+                              <span style={{ fontSize: '0.75rem' }}>Bulk Enabled</span>
+                            </label>
+                          ) : (
+                            <span className={`badge ${prod.bulk_enabled ? 'qualified' : 'pending'}`} style={{ padding: '0.2rem 0.4rem', fontSize: '0.7rem' }}>
+                              {prod.bulk_enabled ? 'Bulk Enabled' : 'Disabled'}
+                            </span>
+                          )}
+                        </td>
+                        <td style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>
+                          {isEditing ? (
+                            <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+                              <button 
+                                className="action-badge" 
+                                onClick={() => handleSaveProduct(prod.sku)} 
+                                style={{ background: 'rgba(16,185,129,0.15)', color: 'var(--color-success)', border: 'none', padding: '0.3rem 0.5rem', borderRadius: '4px', cursor: 'pointer' }}
+                                title="Save"
+                              >
+                                <Save size={14} />
+                              </button>
+                              <button 
+                                className="action-badge" 
+                                onClick={() => setEditingSku(null)} 
+                                style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--color-text-muted)', border: 'none', padding: '0.3rem 0.5rem', borderRadius: '4px', cursor: 'pointer' }}
+                                title="Cancel"
+                              >
+                                <X size={14} />
+                              </button>
+                            </div>
+                          ) : (
+                            <button 
+                              className="action-badge" 
+                              onClick={() => handleEditClick(prod)} 
+                              style={{ background: 'rgba(59,130,246,0.15)', color: 'var(--color-primary-light)', border: 'none', padding: '0.3rem 0.5rem', borderRadius: '4px', cursor: 'pointer' }}
+                              title="Edit Bulk Configuration"
+                            >
+                              <Edit2 size={14} />
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 };

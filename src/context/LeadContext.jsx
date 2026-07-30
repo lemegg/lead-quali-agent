@@ -11,6 +11,7 @@ export const LeadProvider = ({ children }) => {
     return sessionStorage.getItem('qualiflow_customer_chat_id') || '';
   });
   const [customerLeadDetails, setCustomerLeadDetails] = useState(null);
+  const [products, setProducts] = useState([]);
   const [threshold, setThreshold] = useState(() => {
     const saved = localStorage.getItem('qualiflow_threshold');
     return saved ? parseInt(saved, 10) : 70;
@@ -300,6 +301,64 @@ export const LeadProvider = ({ children }) => {
     }
   };
 
+  const fetchProducts = async () => {
+    try {
+      const res = await fetch('/api/products');
+      if (res.ok) {
+        const data = await res.json();
+        setProducts(data);
+      }
+    } catch (err) {
+      console.error('Error fetching products:', err);
+    }
+  };
+
+  const importProducts = async (parsedProducts) => {
+    try {
+      const res = await fetch('/api/products/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ products: parsedProducts })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success) {
+          setProducts(data.products);
+          return true;
+        }
+      }
+    } catch (err) {
+      console.error('Error importing products:', err);
+    }
+    return false;
+  };
+
+  const updateProductSettings = async (sku, bulkPrice, bulkEnabled) => {
+    try {
+      const res = await fetch(`/api/products/${sku}/update`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bulk_price: bulkPrice, bulk_enabled: bulkEnabled })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success) {
+          setProducts(prev => prev.map(p => p.sku === sku ? data.product : p));
+          return true;
+        }
+      }
+    } catch (err) {
+      console.error('Error updating product settings:', err);
+    }
+    return false;
+  };
+
+  useEffect(() => {
+    if (isAdminLoggedIn) {
+      fetchProducts();
+    }
+  }, [isAdminLoggedIn]);
+
   return (
     <LeadContext.Provider value={{
       leads,
@@ -309,6 +368,10 @@ export const LeadProvider = ({ children }) => {
       setCustomerChatId,
       customerLeadDetails,
       lookupLeadByPhone,
+      products,
+      fetchProducts,
+      importProducts,
+      updateProductSettings,
       threshold,
       setThreshold,
       isAdminLoggedIn,
