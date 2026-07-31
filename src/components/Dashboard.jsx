@@ -14,7 +14,8 @@ const Dashboard = () => {
     logoutAdmin,
     products,
     importProducts,
-    updateProductSettings
+    updateProductSettings,
+    clearProductsCatalog
   } = useLeads();
   
   const [selectedLeadId, setSelectedLeadId] = useState(leads[0]?.id || null);
@@ -234,6 +235,17 @@ const Dashboard = () => {
       setEditingSku(null);
     } else {
       alert('Failed to update product details.');
+    }
+  };
+
+  const handleClearCatalog = async () => {
+    if (window.confirm("Are you sure you want to completely remove the product catalog? This will delete all catalog items and reset the AI's product mapping.")) {
+      const success = await clearProductsCatalog();
+      if (success) {
+        alert("Product catalog successfully cleared!");
+      } else {
+        alert("Failed to clear product catalog.");
+      }
     }
   };
 
@@ -684,6 +696,25 @@ const Dashboard = () => {
             </div>
             
             <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+              {products.length > 0 && (
+                <button
+                  className="btn btn-secondary"
+                  onClick={handleClearCatalog}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    padding: '0.6rem 1.25rem',
+                    fontSize: '0.85rem',
+                    color: '#fda4af',
+                    borderColor: 'rgba(244, 63, 94, 0.4)',
+                    background: 'rgba(244, 63, 94, 0.05)'
+                  }}
+                >
+                  <X size={16} />
+                  Clear Catalog
+                </button>
+              )}
               <label 
                 className="btn btn-primary" 
                 style={{ 

@@ -892,6 +892,17 @@ app.post('/api/products/:sku/update', async (req, res) => {
   }
 });
 
+// 12. Clear All Catalog Products
+app.post('/api/products/clear', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM products');
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error clearing products catalog:', err);
+    res.status(500).json({ error: 'Failed to clear products catalog.' });
+  }
+});
+
 // Serve static assets in production
 app.use(express.static(path.join(__dirname, 'dist')));
 

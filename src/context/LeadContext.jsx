@@ -353,6 +353,22 @@ export const LeadProvider = ({ children }) => {
     return false;
   };
 
+  const clearProductsCatalog = async () => {
+    try {
+      const res = await fetch('/api/products/clear', { method: 'POST' });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success) {
+          setProducts([]);
+          return true;
+        }
+      }
+    } catch (err) {
+      console.error('Error clearing products catalog:', err);
+    }
+    return false;
+  };
+
   useEffect(() => {
     if (isAdminLoggedIn) {
       fetchProducts();
@@ -372,6 +388,7 @@ export const LeadProvider = ({ children }) => {
       fetchProducts,
       importProducts,
       updateProductSettings,
+      clearProductsCatalog,
       threshold,
       setThreshold,
       isAdminLoggedIn,
