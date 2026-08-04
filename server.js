@@ -73,14 +73,19 @@ const initializeDatabase = async () => {
       CREATE TABLE IF NOT EXISTS products (
         id SERIAL PRIMARY KEY,
         number INT,
-        title VARCHAR(255),
-        sku VARCHAR(100) UNIQUE,
+        title TEXT,
+        sku TEXT UNIQUE,
         variant_price NUMERIC,
         bulk_price NUMERIC,
         bulk_enabled BOOLEAN DEFAULT TRUE
       );
     `);
-    console.log('✓ products table verified.');
+    // Run migration alter queries to handle existing table column conversions
+    await client.query(`
+      ALTER TABLE products ALTER COLUMN sku TYPE TEXT;
+      ALTER TABLE products ALTER COLUMN title TYPE TEXT;
+    `);
+    console.log('✓ products table verified and schema migrated.');
 
     client.release();
   } catch (err) {
