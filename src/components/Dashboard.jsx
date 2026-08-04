@@ -149,21 +149,30 @@ const Dashboard = () => {
 
       if (inQuotes) {
         if (char === '"') {
-          if (nextChar === '"') {
+          const isClosing = (i === text.length - 1) || (nextChar === delimiter) || (nextChar === '\r') || (nextChar === '\n');
+          
+          if (isClosing) {
+            inQuotes = false;
+          } else if (nextChar === '"') {
             // Double double-quotes inside quotes mean an escaped double quote
             currentVal += '"';
             i++; // skip next quote
           } else {
-            // Closing quote
-            inQuotes = false;
+            // Literal quote inside the field (like an HTML attribute quote)
+            currentVal += '"';
           }
         } else {
           currentVal += char;
         }
       } else {
         if (char === '"') {
-          // Opening quote
-          inQuotes = true;
+          // Opening quote: only if it is at the start of a field
+          const isOpening = (i === 0) || (text[i - 1] === delimiter) || (text[i - 1] === '\r') || (text[i - 1] === '\n') || (text[i - 1] === ' ') || (text[i - 1] === '\t');
+          if (isOpening) {
+            inQuotes = true;
+          } else {
+            currentVal += '"';
+          }
         } else if (char === delimiter) {
           // Value separator
           currentRow.push(currentVal.trim());

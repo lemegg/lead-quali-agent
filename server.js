@@ -837,6 +837,8 @@ app.post('/api/products/import', async (req, res) => {
   }
   try {
     await pool.query('BEGIN');
+    // Clear old products first so the new catalog completely replaces it!
+    await pool.query('DELETE FROM products');
     for (const prod of products) {
       await pool.query(
         `INSERT INTO products (number, title, sku, variant_price, bulk_price, bulk_enabled)
