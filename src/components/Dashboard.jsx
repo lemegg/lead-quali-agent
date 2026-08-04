@@ -137,6 +137,65 @@ const Dashboard = () => {
     updateLeadStatus(leadId, newStatus);
   };
 
+  const parseCSV = (text, delimiter) => {
+    const rows = [];
+    let currentRow = [];
+    let currentVal = '';
+    let inQuotes = false;
+
+    for (let i = 0; i < text.length; i++) {
+      const char = text[i];
+      const nextChar = text[i + 1];
+
+      if (inQuotes) {
+        if (char === '"') {
+          if (nextChar === '"') {
+            // Double double-quotes inside quotes mean an escaped double quote
+            currentVal += '"';
+            i++; // skip next quote
+          } else {
+            // Closing quote
+            inQuotes = false;
+          }
+        } else {
+          currentVal += char;
+        }
+      } else {
+        if (char === '"') {
+          // Opening quote
+          inQuotes = true;
+        } else if (char === delimiter) {
+          // Value separator
+          currentRow.push(currentVal.trim());
+          currentVal = '';
+        } else if (char === '\r' || char === '\n') {
+          // Row separator
+          currentRow.push(currentVal.trim());
+          if (currentRow.length > 0 && currentRow.some(cell => cell !== '')) {
+            rows.push(currentRow);
+          }
+          currentRow = [];
+          currentVal = '';
+          if (char === '\r' && nextChar === '\n') {
+            i++; // skip \n
+          }
+        } else {
+          currentVal += char;
+        }
+      }
+    }
+
+    // Push final value and row if present
+    if (currentVal !== '' || currentRow.length > 0) {
+      currentRow.push(currentVal.trim());
+      if (currentRow.some(cell => cell !== '')) {
+        rows.push(currentRow);
+      }
+    }
+
+    return rows;
+  };
+
   const handleFileUpload = (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -145,19 +204,14 @@ const Dashboard = () => {
     reader.onload = async (evt) => {
       const text = evt.target.result;
       try {
-        const lines = text.split(/\r?\n/);
-        if (lines.length < 2) {
-          setCsvError('CSV file must have at least a header row and one data row.');
-          return;
-        }
+        // Clean Byte Order Mark (BOM) if present at start of text
+        const cleanText = text.replace(/^\uFEFF/, '');
 
-        // Clean Byte Order Mark (BOM) if present in first line
-        const cleanFirstLine = lines[0].replace(/^\uFEFF/, '');
-
-        // Auto-detect delimiter by counting frequency in the header line
-        const commaCount = (cleanFirstLine.match(/,/g) || []).length;
-        const semicolonCount = (cleanFirstLine.match(/;/g) || []).length;
-        const tabCount = (cleanFirstLine.match(/\t/g) || []).length;
+        // Auto-detect delimiter by counting frequency in the first line
+        const firstLine = cleanText.split(/\r?\n/)[0] || '';
+        const commaCount = (firstLine.match(/,/g) || []).length;
+        const semicolonCount = (firstLine.match(/;/g) || []).length;
+        const tabCount = (firstLine.match(/\t/g) || []).length;
 
         let delimiter = ',';
         if (tabCount > commaCount && tabCount > semicolonCount) {
@@ -166,10 +220,15 @@ const Dashboard = () => {
           delimiter = ';';
         }
 
-        // Clean headers: lowercase, trimmed, and stripped of outer quotes
-        const headers = cleanFirstLine.split(delimiter).map(h => 
-          h.trim().toLowerCase().replace(/^"|"$/g, '').trim()
-        );
+        // Parse CSV/TSV handling newlines inside quotes
+        const rows = parseCSV(cleanText, delimiter);
+        if (rows.length < 2) {
+          setCsvError('CSV file must have at least a header row and one data row.');
+          return;
+        }
+
+        // Clean headers: lowercase, trimmed
+        const headers = rows[0].map(h => h.toLowerCase().trim());
         
         if (!headers.some(h => h.includes('title'))) {
           setCsvError('CSV file must contain a "title" or "product name" column.');
@@ -177,29 +236,9 @@ const Dashboard = () => {
         }
 
         const parsedProducts = [];
-        for (let i = 1; i < lines.length; i++) {
-          const line = lines[i].trim();
-          if (!line) continue;
-
-          // Split by delimiter handling optional quoted values
-          let values;
-          if (delimiter === ',') {
-            values = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
-          } else if (delimiter === ';') {
-            values = line.split(/;(?=(?:(?:[^"]*"){2})*[^"]*$)/);
-          } else if (delimiter === '\t') {
-            values = line.split(/\t(?=(?:(?:[^"]*"){2})*[^"]*$)/);
-          } else {
-            values = line.split(delimiter);
-          }
-
-          values = values.map(v => {
-            let cleaned = v.trim();
-            if (cleaned.startsWith('"') && cleaned.endsWith('"')) {
-              cleaned = cleaned.substring(1, cleaned.length - 1);
-            }
-            return cleaned.replace(/""/g, '"').trim();
-          });
+        for (let i = 1; i < rows.length; i++) {
+          const values = rows[i];
+          if (!values || values.length === 0 || (values.length === 1 && values[0] === '')) continue;
 
           const prod = {
             number: i,
