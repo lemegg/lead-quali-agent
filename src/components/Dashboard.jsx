@@ -145,13 +145,27 @@ const Dashboard = () => {
     reader.onload = async (evt) => {
       const text = evt.target.result;
       try {
-        const lines = text.split('\n');
+        const lines = text.split(/\r?\n/);
         if (lines.length < 2) {
           setCsvError('CSV file must have at least a header row and one data row.');
           return;
         }
 
-        const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+        // Clean Byte Order Mark (BOM) if present in first line
+        const cleanFirstLine = lines[0].replace(/^\uFEFF/, '');
+
+        // Auto-detect delimiter (comma, semicolon, or tab)
+        let delimiter = ',';
+        if (cleanFirstLine.includes(';')) {
+          delimiter = ';';
+        } else if (cleanFirstLine.includes('\t')) {
+          delimiter = '\t';
+        }
+
+        // Clean headers: lowercase, trimmed, and stripped of outer quotes
+        const headers = cleanFirstLine.split(delimiter).map(h => 
+          h.trim().toLowerCase().replace(/^"|"$/g, '').trim()
+        );
         
         if (!headers.some(h => h.includes('sku'))) {
           setCsvError('CSV file must contain an "sku" column.');
@@ -167,8 +181,15 @@ const Dashboard = () => {
           const line = lines[i].trim();
           if (!line) continue;
 
-          // Split by comma handling optional quoted values
-          const values = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(v => v.replace(/^"|"$/g, '').trim());
+          // Split by delimiter handling optional quoted values
+          let values;
+          if (delimiter === ',') {
+            values = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(v => v.replace(/^"|"$/g, '').trim());
+          } else if (delimiter === ';') {
+            values = line.split(/;(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(v => v.replace(/^"|"$/g, '').trim());
+          } else {
+            values = line.split(delimiter).map(v => v.replace(/^"|"$/g, '').trim());
+          }
 
           const prod = {
             number: i,
@@ -204,7 +225,7 @@ const Dashboard = () => {
         }
 
         if (parsedProducts.length === 0) {
-          setCsvError('No valid rows could be parsed from the CSV.');
+          setCsvError('No valid rows could be parsed from the CSV. Please verify column headers match number, title, sku, variant price, bulk price, bulk enabled.');
           return;
         }
 
