@@ -154,12 +154,16 @@ const Dashboard = () => {
         // Clean Byte Order Mark (BOM) if present in first line
         const cleanFirstLine = lines[0].replace(/^\uFEFF/, '');
 
-        // Auto-detect delimiter (comma, semicolon, or tab)
+        // Auto-detect delimiter by counting frequency in the header line
+        const commaCount = (cleanFirstLine.match(/,/g) || []).length;
+        const semicolonCount = (cleanFirstLine.match(/;/g) || []).length;
+        const tabCount = (cleanFirstLine.match(/\t/g) || []).length;
+
         let delimiter = ',';
-        if (cleanFirstLine.includes(';')) {
-          delimiter = ';';
-        } else if (cleanFirstLine.includes('\t')) {
+        if (tabCount > commaCount && tabCount > semicolonCount) {
           delimiter = '\t';
+        } else if (semicolonCount > commaCount && semicolonCount > tabCount) {
+          delimiter = ';';
         }
 
         // Clean headers: lowercase, trimmed, and stripped of outer quotes
@@ -167,12 +171,8 @@ const Dashboard = () => {
           h.trim().toLowerCase().replace(/^"|"$/g, '').trim()
         );
         
-        if (!headers.some(h => h.includes('sku'))) {
-          setCsvError('CSV file must contain an "sku" column.');
-          return;
-        }
         if (!headers.some(h => h.includes('title'))) {
-          setCsvError('CSV file must contain a "title" column.');
+          setCsvError('CSV file must contain a "title" or "product name" column.');
           return;
         }
 
@@ -184,17 +184,28 @@ const Dashboard = () => {
           // Split by delimiter handling optional quoted values
           let values;
           if (delimiter === ',') {
-            values = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(v => v.replace(/^"|"$/g, '').trim());
+            values = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
           } else if (delimiter === ';') {
-            values = line.split(/;(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(v => v.replace(/^"|"$/g, '').trim());
+            values = line.split(/;(?=(?:(?:[^"]*"){2})*[^"]*$)/);
+          } else if (delimiter === '\t') {
+            values = line.split(/\t(?=(?:(?:[^"]*"){2})*[^"]*$)/);
           } else {
-            values = line.split(delimiter).map(v => v.replace(/^"|"$/g, '').trim());
+            values = line.split(delimiter);
           }
+
+          values = values.map(v => {
+            let cleaned = v.trim();
+            if (cleaned.startsWith('"') && cleaned.endsWith('"')) {
+              cleaned = cleaned.substring(1, cleaned.length - 1);
+            }
+            return cleaned.replace(/""/g, '"').trim();
+          });
 
           const prod = {
             number: i,
             title: '',
             sku: '',
+            handle: '',
             variant_price: 0,
             bulk_price: 0,
             bulk_enabled: true
@@ -204,28 +215,49 @@ const Dashboard = () => {
             const val = values[index];
             if (val === undefined) return;
 
-            if (header.includes('variant') || header === 'variant_price' || (header.includes('price') && !header.includes('bulk'))) {
-              prod.variant_price = parseFloat(val) || 0;
-            } else if (header.includes('bulk') && (header.includes('price') || header === 'bulk_price')) {
-              prod.bulk_price = parseFloat(val) || 0;
-            } else if (header.includes('enabled') || header.includes('bulk enabled') || header === 'bulk_enabled') {
-              prod.bulk_enabled = val.toLowerCase() === 'true' || val === '1' || val.toLowerCase() === 'yes' || val.toLowerCase() === 'checked';
-            } else if (header === 'number' || header === 'no' || header === 'id') {
-              prod.number = parseInt(val, 10) || i;
-            } else if (header === 'title') {
-              prod.title = val;
-            } else if (header === 'sku') {
+            // 1. SKU matching (matches "sku", "variant sku", "product sku", etc.)
+            if (header.includes('sku')) {
               prod.sku = val;
+            } 
+            // 2. Title matching (matches "title", "product title", "name", etc.)
+            else if (header === 'title' || header === 'name' || header === 'product name') {
+              prod.title = val;
+            }
+            // 3. Handle matching (useful for Shopify)
+            else if (header === 'handle' || header.includes('handle')) {
+              prod.handle = val;
+            }
+            // 4. Bulk price matching (matches "bulk price", "bulk_price", etc.)
+            else if (header.includes('bulk') && header.includes('price')) {
+              prod.bulk_price = parseFloat(val) || 0;
+            } 
+            // 5. Variant/Standard price matching (matches "variant price", "variant_price", "price", etc. but NOT bulk price, compare price, or unit price)
+            else if (header.includes('price') && !header.includes('bulk') && !header.includes('compare') && !header.includes('unit')) {
+              prod.variant_price = parseFloat(val) || 0;
+            } 
+            // 6. Bulk enabled matching (matches "bulk enabled", "bulk_enabled", "bulk active", etc.)
+            else if (header.includes('enabled') || header.includes('bulk enabled') || header === 'bulk_enabled' || header.includes('bulk_enabled')) {
+              prod.bulk_enabled = val.toLowerCase() === 'true' || val === '1' || val.toLowerCase() === 'yes' || val.toLowerCase() === 'checked';
+            } 
+            // 7. Row number matching
+            else if (header === 'number' || header === 'no' || header === 'id') {
+              prod.number = parseInt(val, 10) || i;
             }
           });
 
-          if (prod.sku && prod.title) {
+          // Fallback logic if SKU is empty
+          if (!prod.sku && prod.title) {
+            prod.sku = prod.handle || prod.title.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+          }
+
+          // We only import rows that have at least a Title (meaning they are not just extra image rows)
+          if (prod.title) {
             parsedProducts.push(prod);
           }
         }
 
         if (parsedProducts.length === 0) {
-          setCsvError('No valid rows could be parsed from the CSV. Please verify column headers match number, title, sku, variant price, bulk price, bulk enabled.');
+          setCsvError('No valid rows could be parsed from the CSV. Please verify column headers match title, sku (optional), variant price, bulk price.');
           return;
         }
 
