@@ -77,13 +77,16 @@ const initializeDatabase = async () => {
         sku TEXT UNIQUE,
         variant_price NUMERIC,
         bulk_price NUMERIC,
-        bulk_enabled BOOLEAN DEFAULT TRUE
+        bulk_enabled BOOLEAN DEFAULT FALSE,
+        sku_missing BOOLEAN DEFAULT FALSE
       );
     `);
     // Run migration alter queries to handle existing table column conversions
     await client.query(`
       ALTER TABLE products ALTER COLUMN sku TYPE TEXT;
       ALTER TABLE products ALTER COLUMN title TYPE TEXT;
+      ALTER TABLE products ALTER COLUMN bulk_enabled SET DEFAULT FALSE;
+      ALTER TABLE products ADD COLUMN IF NOT EXISTS sku_missing BOOLEAN DEFAULT FALSE;
     `);
     console.log('✓ products table verified and schema migrated.');
 
@@ -841,21 +844,23 @@ app.post('/api/products/import', async (req, res) => {
     await pool.query('DELETE FROM products');
     for (const prod of products) {
       await pool.query(
-        `INSERT INTO products (number, title, sku, variant_price, bulk_price, bulk_enabled)
-         VALUES ($1, $2, $3, $4, $5, $6)
+        `INSERT INTO products (number, title, sku, variant_price, bulk_price, bulk_enabled, sku_missing)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
          ON CONFLICT (sku) DO UPDATE SET
            number = EXCLUDED.number,
            title = EXCLUDED.title,
            variant_price = EXCLUDED.variant_price,
            bulk_price = EXCLUDED.bulk_price,
-           bulk_enabled = EXCLUDED.bulk_enabled`,
+           bulk_enabled = EXCLUDED.bulk_enabled,
+           sku_missing = EXCLUDED.sku_missing`,
         [
           parseInt(prod.number, 10) || null,
           prod.title || '',
           prod.sku || '',
           parseFloat(prod.variant_price) || 0,
           parseFloat(prod.bulk_price) || 0,
-          prod.bulk_enabled !== false && prod.bulk_enabled !== 'false'
+          prod.bulk_enabled === true || prod.bulk_enabled === 'true',
+          prod.sku_missing === true || prod.sku_missing === 'true'
         ]
       );
     }

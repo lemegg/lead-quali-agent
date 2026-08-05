@@ -256,7 +256,8 @@ const Dashboard = () => {
             handle: '',
             variant_price: 0,
             bulk_price: 0,
-            bulk_enabled: true
+            bulk_enabled: false,
+            sku_missing: false
           };
 
           headers.forEach((header, index) => {
@@ -295,6 +296,7 @@ const Dashboard = () => {
 
           // Fallback logic if SKU is empty
           if (!prod.sku && prod.title) {
+            prod.sku_missing = true;
             prod.sku = prod.handle || prod.title.toLowerCase().replace(/[^a-z0-9]+/g, '-');
           }
 
@@ -873,7 +875,27 @@ const Dashboard = () => {
                     return (
                       <tr key={prod.sku} style={{ borderBottom: '1px solid rgba(255,255,255,0.02)', verticalAlign: 'middle', transition: 'background 0.2s' }}>
                         <td style={{ padding: '0.85rem 1rem', color: 'var(--color-text-muted)' }}>{prod.number || idx + 1}</td>
-                        <td style={{ padding: '0.85rem 1rem', fontFamily: 'monospace', fontWeight: '600' }}>{prod.sku}</td>
+                        <td style={{ padding: '0.85rem 1rem', fontFamily: 'monospace', fontWeight: '600' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                            <span>{prod.sku}</span>
+                            {prod.sku_missing && (
+                              <span style={{ 
+                                display: 'inline-flex', 
+                                alignItems: 'center', 
+                                gap: '0.25rem', 
+                                color: '#f59e0b', 
+                                fontSize: '0.7rem', 
+                                fontWeight: '500',
+                                background: 'rgba(245, 158, 11, 0.1)',
+                                padding: '0.1rem 0.4rem',
+                                borderRadius: '4px',
+                                width: 'fit-content'
+                              }}>
+                                <AlertCircle size={10} /> Blank SKU
+                              </span>
+                            )}
+                          </div>
+                        </td>
                         <td style={{ padding: '0.85rem 1rem', color: '#f1f5f9', fontWeight: '600' }}>{prod.title}</td>
                         <td style={{ padding: '0.85rem 1rem' }}>Rs. {prod.variant_price}</td>
                         <td style={{ padding: '0.85rem 1rem' }}>
