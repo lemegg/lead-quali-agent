@@ -307,11 +307,11 @@ async function getDynamicGreeting() {
       grouped[cat].push(p);
     }
     
-    let catalogText = "🌿 **Our Featured Wholesale Catalog**\n";
+    let catalogText = "🌿 FEATURED WHOLESALE CATALOG\n";
     for (const [catName, items] of Object.entries(grouped)) {
-      catalogText += `\n*${catName}*\n`;
+      catalogText += `\n📁 ${catName.toUpperCase()}\n`;
       for (const item of items) {
-        catalogText += `• **${item.title}** — Rs. ${item.variant_price} *(Bulk: Rs. ${item.bulk_price})*\n`;
+        catalogText += `   • ${item.title} — Rs. ${item.variant_price} (Bulk: Rs. ${item.bulk_price})\n`;
       }
     }
     
