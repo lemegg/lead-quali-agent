@@ -78,7 +78,8 @@ const initializeDatabase = async () => {
         variant_price NUMERIC,
         bulk_price NUMERIC,
         bulk_enabled BOOLEAN DEFAULT FALSE,
-        sku_missing BOOLEAN DEFAULT FALSE
+        sku_missing BOOLEAN DEFAULT FALSE,
+        category TEXT
       );
     `);
     // Run migration alter queries to handle existing table column conversions
@@ -87,6 +88,7 @@ const initializeDatabase = async () => {
       ALTER TABLE products ALTER COLUMN title TYPE TEXT;
       ALTER TABLE products ALTER COLUMN bulk_enabled SET DEFAULT FALSE;
       ALTER TABLE products ADD COLUMN IF NOT EXISTS sku_missing BOOLEAN DEFAULT FALSE;
+      ALTER TABLE products ADD COLUMN IF NOT EXISTS category TEXT;
     `);
     console.log('✓ products table verified and schema migrated.');
 
@@ -279,6 +281,47 @@ const generateLocalFallbackResponse = (message, history, currentLead, catalogPro
   };
 };
 
+// Helper to construct the dynamic text-based catalog greeting
+async function getDynamicGreeting() {
+  const defaultGreeting = "- Hello! I am the QualiFlow Botanical Assistant.\n- To start, what is your shipping city and delivery pincode?";
+  try {
+    const productsRes = await pool.query(
+      `SELECT title, variant_price, bulk_price, category 
+       FROM products 
+       WHERE sku_missing = false AND bulk_enabled = true AND variant_price > 0 
+       ORDER BY number ASC 
+       LIMIT 20`
+    );
+    
+    if (productsRes.rows.length === 0) {
+      return defaultGreeting;
+    }
+    
+    // Group products by category
+    const grouped = {};
+    for (const p of productsRes.rows) {
+      const cat = p.category || 'Other Supplies';
+      if (!grouped[cat]) {
+        grouped[cat] = [];
+      }
+      grouped[cat].push(p);
+    }
+    
+    let catalogText = "🌿 **Our Featured Wholesale Catalog**\n";
+    for (const [catName, items] of Object.entries(grouped)) {
+      catalogText += `\n*${catName}*\n`;
+      for (const item of items) {
+        catalogText += `• **${item.title}** — Rs. ${item.variant_price} *(Bulk: Rs. ${item.bulk_price})*\n`;
+      }
+    }
+    
+    return `- Hello! I am the QualiFlow Botanical Assistant.\n- To start, what is your shipping city and delivery pincode?\n\n${catalogText}`;
+  } catch (err) {
+    console.error('Error generating dynamic greeting:', err);
+    return defaultGreeting;
+  }
+}
+
 // ----------------------------------------------------
 // REST API ROUTES
 // ----------------------------------------------------
@@ -288,7 +331,7 @@ const generateLocalFallbackResponse = (message, history, currentLead, catalogPro
 // 1b. Look Up or Create Lead by Phone/Email (Pre-Chat Lead Form)
 app.post('/api/leads/lookup', async (req, res) => {
   const { name, phone, email, visitorId } = req.body;
-  const initialGreeting = "- Hello! I am the QualiFlow Botanical Assistant.\n- To start, what is your shipping city and delivery pincode?";
+  const initialGreeting = await getDynamicGreeting();
 
   if (!phone) {
     return res.status(400).json({ error: 'Phone number is required.' });
@@ -387,7 +430,7 @@ app.post('/api/leads/lookup', async (req, res) => {
 app.post('/api/leads', async (req, res) => {
   const { visitorId } = req.body;
   const leadId = `lead-${Date.now()}`;
-  const initialGreeting = "- Hello! I am the QualiFlow Botanical Assistant.\n- To start, what is your shipping city and delivery pincode?";
+  const initialGreeting = await getDynamicGreeting();
   
   try {
     let existingName = '';
@@ -844,15 +887,16 @@ app.post('/api/products/import', async (req, res) => {
     await pool.query('DELETE FROM products');
     for (const prod of products) {
       await pool.query(
-        `INSERT INTO products (number, title, sku, variant_price, bulk_price, bulk_enabled, sku_missing)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)
+        `INSERT INTO products (number, title, sku, variant_price, bulk_price, bulk_enabled, sku_missing, category)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
          ON CONFLICT (sku) DO UPDATE SET
            number = EXCLUDED.number,
            title = EXCLUDED.title,
            variant_price = EXCLUDED.variant_price,
            bulk_price = EXCLUDED.bulk_price,
            bulk_enabled = EXCLUDED.bulk_enabled,
-           sku_missing = EXCLUDED.sku_missing`,
+           sku_missing = EXCLUDED.sku_missing,
+           category = EXCLUDED.category`,
         [
           parseInt(prod.number, 10) || null,
           prod.title || '',
@@ -860,7 +904,8 @@ app.post('/api/products/import', async (req, res) => {
           parseFloat(prod.variant_price) || 0,
           parseFloat(prod.bulk_price) || 0,
           prod.bulk_enabled === true || prod.bulk_enabled === 'true',
-          prod.sku_missing === true || prod.sku_missing === 'true'
+          prod.sku_missing === true || prod.sku_missing === 'true',
+          prod.category || 'Other Supplies'
         ]
       );
     }

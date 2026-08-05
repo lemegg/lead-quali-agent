@@ -257,7 +257,8 @@ const Dashboard = () => {
             variant_price: 0,
             bulk_price: 0,
             bulk_enabled: false,
-            sku_missing: false
+            sku_missing: false,
+            category: ''
           };
 
           headers.forEach((header, index) => {
@@ -292,12 +293,20 @@ const Dashboard = () => {
             else if (header === 'number' || header === 'no' || header === 'id') {
               prod.number = parseInt(val, 10) || i;
             }
+            // 8. Category matching
+            else if (header === 'product category' || header === 'category' || header === 'type') {
+              prod.category = val.includes('>') ? val.split('>').pop().trim() : val;
+            }
           });
 
           // Fallback logic if SKU is empty
           if (!prod.sku && prod.title) {
             prod.sku_missing = true;
             prod.sku = prod.handle || prod.title.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+          }
+
+          if (!prod.category) {
+            prod.category = 'Other Supplies';
           }
 
           // We only import rows that have at least a Title (meaning they are not just extra image rows)
