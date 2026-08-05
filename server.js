@@ -308,10 +308,23 @@ async function getDynamicGreeting() {
     }
     
     let catalogText = "🌿 FEATURED WHOLESALE CATALOG\n";
-    for (const [catName, items] of Object.entries(grouped)) {
-      catalogText += `\n📁 ${catName.toUpperCase()}\n`;
+    const categories = Object.keys(grouped).sort((a, b) => {
+      if (a.toLowerCase() === 'other supplies') return 1;
+      if (b.toLowerCase() === 'other supplies') return -1;
+      return a.localeCompare(b);
+    });
+
+    for (const catName of categories) {
+      const items = grouped[catName];
+      const isOther = catName.toLowerCase() === 'other supplies';
+      
+      if (!isOther) {
+        catalogText += `\n📁 ${catName.toUpperCase()}\n`;
+      }
+      
       for (const item of items) {
-        catalogText += `   • ${item.title} — Rs. ${item.variant_price} (Bulk: Rs. ${item.bulk_price})\n`;
+        const indent = isOther ? "• " : "   • ";
+        catalogText += `${indent}${item.title} — Rs. ${item.variant_price}\n`;
       }
     }
     
