@@ -635,10 +635,27 @@ app.post('/api/leads/:id/messages', async (req, res) => {
       criteria: currentLead.criteria || {}
     };
 
-    const isShowCatalog = text.toLowerCase().includes('show catalogue') || 
-                          text.toLowerCase().includes('show catalog') || 
-                          text.toLowerCase() === 'catalogue' || 
-                          text.toLowerCase() === 'catalog';
+    const normalizedText = text.toLowerCase();
+    const hasCatalogKeyword = normalizedText.includes('catalog') || normalizedText.includes('catalogue');
+    const isShowCatalog = hasCatalogKeyword && (
+      normalizedText.includes('show') ||
+      normalizedText.includes('send') ||
+      normalizedText.includes('get') ||
+      normalizedText.includes('give') ||
+      normalizedText.includes('view') ||
+      normalizedText.includes('see') ||
+      normalizedText.includes('share') ||
+      normalizedText.includes('list') ||
+      normalizedText.includes('display') ||
+      normalizedText.includes('please') ||
+      normalizedText.includes('have') ||
+      normalizedText.includes('want') ||
+      normalizedText.includes('need') ||
+      normalizedText.includes('what') ||
+      normalizedText.includes('where') ||
+      normalizedText.includes('is') ||
+      normalizedText.split(/\s+/).length <= 3
+    );
 
     const hasGeminiKey = process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY.trim() !== '';
 
