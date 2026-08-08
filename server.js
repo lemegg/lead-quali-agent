@@ -281,9 +281,8 @@ const generateLocalFallbackResponse = (message, history, currentLead, catalogPro
   };
 };
 
-// Helper to construct the dynamic text-based catalog greeting
-async function getDynamicGreeting() {
-  const defaultGreeting = "- Hello! I am the QualiFlow Botanical Assistant.\n- To start, what is your shipping city and delivery pincode?";
+// Helper to construct the dynamic text-based catalog content
+async function getCatalogText() {
   try {
     const productsRes = await pool.query(
       `SELECT title, variant_price, bulk_price, category 
@@ -294,7 +293,7 @@ async function getDynamicGreeting() {
     );
     
     if (productsRes.rows.length === 0) {
-      return defaultGreeting;
+      return "";
     }
     
     // Group products by category
@@ -327,7 +326,21 @@ async function getDynamicGreeting() {
         catalogText += `${indent}${item.title} — Rs. ${item.variant_price}\n`;
       }
     }
-    
+    return catalogText;
+  } catch (err) {
+    console.error('Error generating catalog text:', err);
+    return "";
+  }
+}
+
+// Helper to construct the dynamic text-based catalog greeting
+async function getDynamicGreeting() {
+  const defaultGreeting = "- Hello! I am the QualiFlow Botanical Assistant.\n- To start, what is your shipping city and delivery pincode?";
+  try {
+    const catalogText = await getCatalogText();
+    if (!catalogText) {
+      return defaultGreeting;
+    }
     return `- Hello! I am the QualiFlow Botanical Assistant.\n- To start, what is your shipping city and delivery pincode?\n\n${catalogText}`;
   } catch (err) {
     console.error('Error generating dynamic greeting:', err);
@@ -622,9 +635,17 @@ app.post('/api/leads/:id/messages', async (req, res) => {
       criteria: currentLead.criteria || {}
     };
 
+    const isShowCatalog = text.toLowerCase().includes('show catalogue') || 
+                          text.toLowerCase().includes('show catalog') || 
+                          text.toLowerCase() === 'catalogue' || 
+                          text.toLowerCase() === 'catalog';
+
     const hasGeminiKey = process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY.trim() !== '';
 
-    if (hasGeminiKey) {
+    if (isShowCatalog) {
+      const catalogText = await getCatalogText();
+      reply = catalogText ? `Here is our wholesale catalog:\n\n${catalogText}` : "I couldn't load the catalog right now. Please try again.";
+    } else if (hasGeminiKey) {
       try {
         const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
         const model = genAI.getGenerativeModel({
