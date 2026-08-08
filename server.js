@@ -287,7 +287,7 @@ async function getCatalogText() {
     const productsRes = await pool.query(
       `SELECT title, variant_price, bulk_price, category 
        FROM products 
-       WHERE sku_missing = false AND bulk_enabled = true AND variant_price > 0 
+       WHERE sku_missing = false AND variant_price > 0 
        ORDER BY number ASC 
        LIMIT 20`
     );
