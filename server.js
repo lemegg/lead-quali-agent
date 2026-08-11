@@ -348,6 +348,22 @@ async function getDynamicGreeting() {
   }
 }
 
+// Helper to check if all qualification criteria and contact details are collected
+function isLeadComplete(lead) {
+  if (!lead) return false;
+  const c = lead.criteria || {};
+  return !!(
+    lead.name && 
+    lead.phone && 
+    lead.email && 
+    c.product && 
+    c.quantity && 
+    c.budget && 
+    c.timeline && 
+    c.location
+  );
+}
+
 // ----------------------------------------------------
 // REST API ROUTES
 // ----------------------------------------------------
@@ -789,6 +805,23 @@ Current known parameters:
       `UPDATE leads SET name = $1, phone = $2, email = $3, company = $4, score = $5, status = $6, criteria = $7 WHERE id = $8`,
       [extracted.name, extracted.phone, extracted.email, extracted.company, score, finalStatus, JSON.stringify(extracted.criteria), id]
     );
+
+    // Check if the chat just ended (was not complete before, but is complete now)
+    const wasComplete = isLeadComplete(currentLead);
+    const isNowComplete = isLeadComplete({
+      name: extracted.name,
+      phone: extracted.phone,
+      email: extracted.email,
+      criteria: extracted.criteria
+    });
+
+    if (isNowComplete && !wasComplete) {
+      const confirmationText = `- For confirmation, we have recorded your contact details:\n- Mobile: ${extracted.phone || 'Not provided'}\n- Email: ${extracted.email || 'Not provided'}`;
+      await pool.query(
+        'INSERT INTO chat_messages (lead_id, sender, message_text) VALUES ($1, $2, $3)',
+        [id, 'bot', confirmationText]
+      );
+    }
 
     res.json({
       id,
