@@ -19,6 +19,7 @@ const ChatInterface = ({ mode = 'admin' }) => {
   const [leadPhone, setLeadPhone] = useState('');
   const [leadEmail, setLeadEmail] = useState('');
   const [submittingLead, setSubmittingLead] = useState(false);
+  const [phoneError, setPhoneError] = useState('');
   
   const messagesEndRef = useRef(null);
 
@@ -51,9 +52,38 @@ const ChatInterface = ({ mode = 'admin' }) => {
     setIsTyping(false);
   };
 
+  const getClean10Digit = (phone) => {
+    let cleaned = phone.replace(/\D/g, '');
+    if (cleaned.startsWith('91') && cleaned.length > 10) {
+      cleaned = cleaned.substring(2);
+    } else if (cleaned.startsWith('0') && cleaned.length > 10) {
+      cleaned = cleaned.substring(1);
+    }
+    return cleaned;
+  };
+
+  const handlePhoneChange = (val) => {
+    setLeadPhone(val);
+    if (val.trim() === '') {
+      setPhoneError('');
+    } else {
+      const cleanDigits = getClean10Digit(val);
+      if (cleanDigits.length !== 10) {
+        setPhoneError('Please enter a valid number');
+      } else {
+        setPhoneError('');
+      }
+    }
+  };
+
   const handlePreChatSubmit = async (e) => {
     e.preventDefault();
-    if (!leadPhone.trim()) return;
+    const cleanDigits = getClean10Digit(leadPhone);
+    if (cleanDigits.length !== 10) {
+      setPhoneError('Please enter a valid number');
+      return;
+    }
+    setPhoneError('');
     setSubmittingLead(true);
     await lookupLeadByPhone(leadName, leadPhone, leadEmail);
     setSubmittingLead(false);
@@ -219,10 +249,10 @@ const ChatInterface = ({ mode = 'admin' }) => {
                   placeholder="e.g. +91 98765 43210"
                   required
                   value={leadPhone}
-                  onChange={(e) => setLeadPhone(e.target.value)}
+                  onChange={(e) => handlePhoneChange(e.target.value)}
                   style={{
                     background: 'rgba(0, 0, 0, 0.3)',
-                    border: '1px solid var(--border-color)',
+                    border: phoneError ? '1px solid var(--color-danger)' : '1px solid var(--border-color)',
                     borderRadius: '8px',
                     padding: '0.75rem 1rem',
                     color: '#f1f5f9',
@@ -231,6 +261,11 @@ const ChatInterface = ({ mode = 'admin' }) => {
                     width: '100%'
                   }}
                 />
+                {phoneError && (
+                  <span style={{ color: '#fda4af', fontSize: '0.75rem', marginTop: '0.35rem', display: 'block' }}>
+                    ⚠️ {phoneError}
+                  </span>
+                )}
               </div>
 
               <div className="form-group">
@@ -259,7 +294,7 @@ const ChatInterface = ({ mode = 'admin' }) => {
                 type="submit" 
                 className="btn btn-primary" 
                 style={{ width: '100%', padding: '0.85rem', marginTop: '0.5rem', fontWeight: '600', justifyContent: 'center' }}
-                disabled={submittingLead}
+                disabled={submittingLead || !!phoneError}
               >
                 {submittingLead ? (
                   <span>Loading...</span>

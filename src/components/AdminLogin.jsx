@@ -19,7 +19,7 @@ const AdminLogin = () => {
       const success = loginAdmin(username, password);
       setLoading(false);
       if (!success) {
-        setError('Invalid username or password. Try admin / admin123');
+        setError('Invalid username or password.');
       }
     }, 800);
   };
@@ -91,10 +91,7 @@ const AdminLogin = () => {
           </button>
         </form>
 
-        <div style={{ marginTop: '1.5rem', display: 'flex', gap: '0.5rem', justifyContent: 'center', alignItems: 'center', color: '#64748b', fontSize: '0.8rem' }}>
-          <ShieldAlert size={14} />
-          <span>Demo Access: admin / admin123</span>
-        </div>
+
       </div>
     </div>
   );
