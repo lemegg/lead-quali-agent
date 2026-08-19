@@ -91,10 +91,11 @@ const ChatInterface = ({ mode = 'admin' }) => {
 
   // Quick Action Chips to ease testing/demoing
   const quickChips = [
-    "Hi, I want to order 4 Inch Coir Pots in bulk",
+    "Hi, I want to order Areca Palm Saplings in bulk",
     "Looking for Amaryllis & Rain Lily Bulbs Combo",
-    "Can I get 150 Betel Paan Saplings?",
-    "I need 50 Beginner's Pro Garden Kits",
+    "Can I get 150 Begonia Red Plant Saplings?",
+    "I need 50 Desk Stress Relief Combos",
+    "What is the bulk price of Philodendron Birkin?",
     "My name is John, phone +91 98765-43210, in Pune",
     "Our nursery has a budget of Rs. 15,000"
   ];
