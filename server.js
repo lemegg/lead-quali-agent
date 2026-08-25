@@ -260,7 +260,16 @@ const generateLocalFallbackResponse = (message, history, currentLead, catalogPro
 
   // Dialog tree logic (Strictly one question per reply, short and bulleted)
   let reply = '';
-  if (!criteria.location) {
+
+  // Intercept FAQ query intents first (Discount and Shipping/Damage Policy)
+  const isDiscountQuery = text.includes('discount') || text.includes('coupon') || text.includes('offer') || text.includes('reduce') || text.includes('bulk price') || text.includes('cheap');
+  const isShippingDamageQuery = text.includes('ship') || text.includes('transit') || text.includes('damage') || text.includes('refund') || text.includes('broken') || text.includes('pack');
+
+  if (isDiscountQuery) {
+    reply = "- Regarding discounts, our sales team will reach out to you within 24 hours to discuss bulk rates.";
+  } else if (isShippingDamageQuery) {
+    reply = "- The plants will be shipped from Pune. We take proper care with the packaging, so in most cases they reach safely. However, in the unlikely event that a plant is damaged in transit and revival is deemed impossible, we provide a refund for the affected plant.";
+  } else if (!criteria.location) {
     reply = "- Hello! I am the QualiFlow Botanical Assistant.\n- What shipping city and delivery pincode should we ship to?";
   } else if (!criteria.product) {
     reply = "- Got it.\n- What plants or gifting items do you want to source?";
@@ -690,10 +699,14 @@ app.post('/api/leads/:id/messages', async (req, res) => {
 You are a lead qualification agent named "QualiFlow Botanical Assistant". Your sole task is to carry a polite conversation with a user to qualify their gardening requirements for our sales team.
 You are NOT a sales rep trying to sell actively. Your purpose is to gather details, structure them, and pass them along.
 
+FAQ RULES:
+- If the user asks about discounts, coupons, bulk discounts, wholesale offers, or price reductions, respond exactly with: "- Regarding discounts, our sales team will reach out to you within 24 hours to discuss bulk rates." (Do NOT ask any follow-up question in this case).
+- If the user asks where plants are shipped from, shipping locations, or what happens if plants are damaged during transit, respond exactly with: "- The plants will be shipped from Pune. We take proper care with the packaging, so in most cases they reach safely. However, in the unlikely event that a plant is damaged in transit and revival is deemed impossible, we provide a refund for the affected plant." (Do NOT ask any follow-up question in this case).
+
 CRITICAL FORMATTING GUIDELINES:
-- KEEP ALL REPLIES EXTREMELY BRIEF (maximum 20-30 words total for the entire response).
+- KEEP ALL REPLIES EXTREMELY BRIEF (maximum 20-30 words total for the entire response, unless responding to an FAQ rule).
 - Every sentence must be a bullet point (starting with a hyphen "- ").
-- In each reply, you MUST ask EXACTLY ONE simple question. No compound or multiple questions.
+- In each reply (unless responding to an FAQ rule), you MUST ask EXACTLY ONE simple question. No compound or multiple questions.
 - Do not use conversational filler, wordy text, or long paragraphs.
 - The very first parameter you must prioritize gathering is the location and pincode. Ask for this first.
 
