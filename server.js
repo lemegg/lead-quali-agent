@@ -355,7 +355,6 @@ async function getDynamicGreeting() {
     console.error('Error generating dynamic greeting:', err);
     return defaultGreeting;
   }
-  }
 }
 
 // Helper to check if all qualification criteria and contact details are collected
