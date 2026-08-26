@@ -270,7 +270,7 @@ const generateLocalFallbackResponse = (message, history, currentLead, catalogPro
   } else if (isShippingDamageQuery) {
     reply = "- The plants will be shipped from Pune. We take proper care with the packaging, so in most cases they reach safely. However, in the unlikely event that a plant is damaged in transit and revival is deemed impossible, we provide a refund for the affected plant.";
   } else if (!criteria.location) {
-    reply = "- Hello! I am the QualiFlow Botanical Assistant.\n- What shipping city and delivery pincode should we ship to?";
+    reply = "🌿 Hello! I’m QualiFlow from The Affordable Organic Store.\n- What shipping city and delivery pincode should we ship to?";
   } else if (!criteria.product) {
     reply = "- Got it.\n- What plants or gifting items do you want to source?";
   } else if (!criteria.quantity) {
@@ -344,16 +344,17 @@ async function getCatalogText() {
 
 // Helper to construct the dynamic text-based catalog greeting
 async function getDynamicGreeting() {
-  const defaultGreeting = "- Hello! I am the QualiFlow Botanical Assistant.\n- To start, what is your shipping city and delivery pincode?";
+  const defaultGreeting = "🌿 Hello! I’m QualiFlow from The Affordable Organic Store.\nWe received your interest in our bulk plant enquiry. I can help you explore our wholesale plant catalogue and bulk options.\n\nTo get started, please share your shipping city and delivery pincode.\nIf you prefer, I can also share the catalogue directly. 😊";
   try {
     const catalogText = await getCatalogText();
     if (!catalogText) {
       return defaultGreeting;
     }
-    return `- Hello! I am the QualiFlow Botanical Assistant.\n- To start, what is your shipping city and delivery pincode?\n\n${catalogText}`;
+    return `🌿 Hello! I’m QualiFlow from The Affordable Organic Store.\nWe received your interest in our bulk plant enquiry. I can help you explore our wholesale plant catalogue and bulk options.\n\nTo get started, please share your shipping city and delivery pincode.\nIf you prefer, I can also share the catalogue directly. 😊\n\n${catalogText}`;
   } catch (err) {
     console.error('Error generating dynamic greeting:', err);
     return defaultGreeting;
+  }
   }
 }
 
