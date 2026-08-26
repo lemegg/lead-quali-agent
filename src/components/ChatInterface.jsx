@@ -96,7 +96,6 @@ const ChatInterface = ({ mode = 'admin' }) => {
     "Can I get 150 Begonia Red Plant Saplings?",
     "I need 50 Desk Stress Relief Combos",
     "What is the bulk price of Philodendron Birkin?",
-    "My name is John, phone +91 98765-43210, in Pune",
     "Our nursery has a budget of Rs. 15,000"
   ];
 
