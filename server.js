@@ -746,6 +746,7 @@ You are NOT a sales rep trying to sell actively. Your purpose is to gather detai
 FAQ RULES:
 - If the user asks about discounts, coupons, bulk discounts, wholesale offers, or price reductions, respond exactly with: "- Regarding discounts, our sales team will reach out to you within 24 hours to discuss bulk rates." (Do NOT ask any follow-up question in this case).
 - If the user asks where plants are shipped from, shipping locations, or what happens if plants are damaged during transit, respond exactly with: "- The plants will be shipped from Pune. We take proper care with the packaging, so in most cases they reach safely. However, in the unlikely event that a plant is damaged in transit and revival is deemed impossible, we provide a refund for the affected plant." (Do NOT ask any follow-up question in this case).
+- Product preview images are automatically displayed by our chat interface whenever products are mentioned. NEVER say "I cannot send images" or similar disclaimers to the user.
 
 CRITICAL FORMATTING GUIDELINES:
 - KEEP ALL REPLIES EXTREMELY BRIEF (maximum 20-30 words total for the entire response, unless responding to an FAQ rule).
@@ -850,15 +851,38 @@ Current known parameters:
 
     // Product Image Lookup Logic
     let botImageUrl = null;
-    const reqProduct = extracted.criteria?.product || text;
+    const reqProduct = ((extracted.criteria?.product || '') + ' ' + text).trim();
     if (reqProduct) {
       const pLower = reqProduct.toLowerCase();
-      const matchedProduct = catalogProducts.find(p => 
-        (p.sku && p.sku.toLowerCase() === pLower) || 
-        (p.title && p.title.toLowerCase().includes(pLower)) || 
-        (p.title && pLower.includes(p.title.toLowerCase())) ||
-        (p.sku && pLower.includes(p.sku.toLowerCase()))
-      );
+      const matchedProduct = catalogProducts.find(p => {
+        if (!p) return false;
+        const skuLower = (p.sku || '').toLowerCase();
+        const titleLower = (p.title || '').toLowerCase();
+        
+        if (skuLower && pLower.includes(skuLower)) return true;
+        if (titleLower && pLower.includes(titleLower)) return true;
+        if (titleLower && titleLower.includes(pLower)) return true;
+
+        // Clean title by removing common specs
+        const cleanTitle = titleLower
+          .replace(/\([^)]*\)/g, '')
+          .replace(/plant sapling/g, '')
+          .replace(/sapling/g, '')
+          .replace(/pack of \d+/g, '')
+          .replace(/set of \d+/g, '')
+          .trim();
+
+        if (cleanTitle && cleanTitle.length > 2 && pLower.includes(cleanTitle)) return true;
+
+        // Core word overlap matching (e.g. 'desert' and 'rose')
+        const coreWords = cleanTitle.split(/\s+/).filter(w => w.length > 2 && w !== 'plant' && w !== 'combo' && w !== 'pack');
+        if (coreWords.length > 0) {
+          const matchCount = coreWords.filter(w => pLower.includes(w)).length;
+          if (matchCount >= Math.min(2, coreWords.length)) return true;
+        }
+        return false;
+      });
+
       if (matchedProduct) {
         botImageUrl = getProductImageUrl(matchedProduct.sku, matchedProduct.title);
       }
