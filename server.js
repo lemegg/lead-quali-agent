@@ -781,7 +781,8 @@ CRITICAL FORMATTING GUIDELINES:
 - Every sentence must be a bullet point (starting with a hyphen "- ").
 - In each reply (unless responding to an FAQ rule), you MUST ask EXACTLY ONE simple question. No compound or multiple questions.
 - Do not use conversational filler, wordy text, or long paragraphs.
-- The very first parameter you must prioritize gathering is the location and pincode. Ask for this first.
+- Inspect ALREADY_GATHERED_CRITERIA. DO NOT ask for any item (Location, Product, Quantity, Timeline, Budget) that is already filled or known.
+- Find the FIRST item from the priority list (1. Location, 2. Product, 3. Quantity, 4. Timeline, 5. Budget) that is STILL MISSING, and ask ONLY for that missing item.
 
 You must gather the following items:
 1. Location and Pincode (Ask for this first).
@@ -855,12 +856,22 @@ Current known parameters:
  
         reply = parsed.reply;
         score = parsed.score;
+        const mergedCriteria = { ...currentLead.criteria };
+        if (parsed.extractedData && parsed.extractedData.criteria) {
+          Object.keys(parsed.extractedData.criteria).forEach(k => {
+            const val = parsed.extractedData.criteria[k];
+            if (val && typeof val === 'string' && val.trim() !== '') {
+              mergedCriteria[k] = val.trim();
+            }
+          });
+        }
+
         extracted = {
-          name: parsed.extractedData.name || currentLead.name,
-          phone: parsed.extractedData.phone || currentLead.phone,
-          email: parsed.extractedData.email || currentLead.email,
-          company: parsed.extractedData.company || currentLead.company,
-          criteria: { ...currentLead.criteria, ...parsed.extractedData.criteria }
+          name: parsed.extractedData?.name || currentLead.name,
+          phone: parsed.extractedData?.phone || currentLead.phone,
+          email: parsed.extractedData?.email || currentLead.email,
+          company: parsed.extractedData?.company || currentLead.company,
+          criteria: mergedCriteria
         };
       } catch (geminiErr) {
         console.error('Gemini API Error, falling back:', geminiErr);
