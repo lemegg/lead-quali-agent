@@ -294,37 +294,64 @@ const generateLocalFallbackResponse = (message, history, currentLead, catalogPro
   };
 }
 
+const FALLBACK_SKU_MAP = [
+  { sku: 'TA100529', keywords: ['desert rose', 'adenium', 'ta100529'] },
+  { sku: 'TA100520', keywords: ['peace lily', 'ta100520'] },
+  { sku: 'TA100528', keywords: ['philodendron golden', 'ta100528'] },
+  { sku: 'TA100475', keywords: ['money plant', 'ta100475'] },
+  { sku: 'TA100858', keywords: ['njoy', "n'joy", 'ta100858'] },
+  { sku: 'TA100503', keywords: ['golden money', 'ta100503'] },
+  { sku: 'TA100495', keywords: ['golden cypress', 'cypress', 'ta100495'] },
+  { sku: 'TA100591', keywords: ['fittonia', 'fittonia white', 'ta100591'] },
+  { sku: 'TA100498', keywords: ['jade', 'jade plant', 'ta100498'] },
+  { sku: 'TA100815', keywords: ['brahma kamal', 'brahma', 'ta100815'] },
+  { sku: 'TA100566', keywords: ['oxycardium', 'philodendron oxycardium', 'ta100566'] },
+  { sku: 'TA100502', keywords: ['ta100502'] },
+  { sku: 'TA100505', keywords: ['areca', 'areca palm', 'ta100505'] },
+  { sku: 'TA100666', keywords: ['snake plant', 'ta100666'] },
+  { sku: 'TA100729', keywords: ['syngonium', 'ta100729'] },
+  { sku: 'TA100751', keywords: ['rubber plant', 'ta100751'] },
+  { sku: 'TA100577', keywords: ['zz plant', 'zz', 'ta100577'] }
+];
+
 // Helper to inspect product-images directory and return local image URL for a given product
-function getProductImageUrl(sku, title) {
+function getProductImageUrl(sku, title, userText = '') {
   try {
-    let imagesDir = path.join(__dirname, 'dist', 'product-images');
-    if (!fs.existsSync(imagesDir)) {
-      imagesDir = path.join(__dirname, 'public', 'product-images');
-    }
-    if (!fs.existsSync(imagesDir)) return null;
-
-    const files = fs.readdirSync(imagesDir);
+    let files = [];
+    const distDir = path.join(__dirname, 'dist', 'product-images');
+    const publicDir = path.join(__dirname, 'public', 'product-images');
     
-    // Normalize target SKU and title for matching
-    const cleanSku = (sku || '').trim().toLowerCase();
-    const cleanTitleSlug = (title || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
-
-    // 1. Try to match by SKU
-    if (cleanSku) {
-      const matchedBySku = files.find(file => {
-        const nameWithoutExt = path.parse(file).name.toLowerCase();
-        return nameWithoutExt === cleanSku;
-      });
-      if (matchedBySku) return `/product-images/${matchedBySku}`;
+    if (fs.existsSync(distDir)) {
+      try { files = files.concat(fs.readdirSync(distDir)); } catch(e){}
+    }
+    if (fs.existsSync(publicDir)) {
+      try { files = files.concat(fs.readdirSync(publicDir)); } catch(e){}
     }
 
-    // 2. Try to match by Title slug
-    if (cleanTitleSlug) {
-      const matchedByTitle = files.find(file => {
-        const nameWithoutExt = path.parse(file).name.toLowerCase().replace(/[^a-z0-9]+/g, '');
-        return nameWithoutExt === cleanTitleSlug || cleanTitleSlug.includes(nameWithoutExt);
+    if (files.length === 0) return null;
+    files = [...new Set(files)];
+
+    let searchCandidates = [];
+    if (sku) searchCandidates.push(sku.trim().toLowerCase());
+    if (title) searchCandidates.push(title.trim().toLowerCase().replace(/[^a-z0-9]+/g, ''));
+
+    // Check Fallback SKU Map against title and user text
+    const combinedText = ((title || '') + ' ' + (userText || '')).toLowerCase();
+    for (const item of FALLBACK_SKU_MAP) {
+      if (item.keywords.some(kw => combinedText.includes(kw))) {
+        searchCandidates.push(item.sku.toLowerCase());
+      }
+    }
+
+    for (const target of searchCandidates) {
+      if (!target) continue;
+      const matched = files.find(file => {
+        const baseName = path.parse(file).name.toLowerCase();
+        return baseName === target || baseName.includes(target) || target.includes(baseName);
       });
-      if (matchedByTitle) return `/product-images/${matchedByTitle}`;
+      if (matched) {
+        return `/product-images/${matched}`;
+      }
     }
 
     return null;
@@ -884,8 +911,12 @@ Current known parameters:
       });
 
       if (matchedProduct) {
-        botImageUrl = getProductImageUrl(matchedProduct.sku, matchedProduct.title);
+        botImageUrl = getProductImageUrl(matchedProduct.sku, matchedProduct.title, text);
+      } else {
+        botImageUrl = getProductImageUrl(null, null, text);
       }
+    } else {
+      botImageUrl = getProductImageUrl(null, null, text);
     }
 
     // 3. Insert Bot response
