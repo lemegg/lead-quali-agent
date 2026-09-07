@@ -63,8 +63,12 @@ const initializeDatabase = async () => {
         lead_id VARCHAR(50) REFERENCES leads(id) ON DELETE CASCADE,
         sender VARCHAR(10) NOT NULL,
         message_text TEXT NOT NULL,
+        image_url TEXT,
         timestamp TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
       );
+    `);
+    await client.query(`
+      ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS image_url TEXT;
     `);
     console.log('✓ chat_messages table verified.');
 
@@ -288,7 +292,47 @@ const generateLocalFallbackResponse = (message, history, currentLead, catalogPro
     score,
     extractedData: { name, phone, email, company, criteria }
   };
-};
+}
+
+// Helper to inspect product-images directory and return local image URL for a given product
+function getProductImageUrl(sku, title) {
+  try {
+    let imagesDir = path.join(__dirname, 'dist', 'product-images');
+    if (!fs.existsSync(imagesDir)) {
+      imagesDir = path.join(__dirname, 'public', 'product-images');
+    }
+    if (!fs.existsSync(imagesDir)) return null;
+
+    const files = fs.readdirSync(imagesDir);
+    
+    // Normalize target SKU and title for matching
+    const cleanSku = (sku || '').trim().toLowerCase();
+    const cleanTitleSlug = (title || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+
+    // 1. Try to match by SKU
+    if (cleanSku) {
+      const matchedBySku = files.find(file => {
+        const nameWithoutExt = path.parse(file).name.toLowerCase();
+        return nameWithoutExt === cleanSku;
+      });
+      if (matchedBySku) return `/product-images/${matchedBySku}`;
+    }
+
+    // 2. Try to match by Title slug
+    if (cleanTitleSlug) {
+      const matchedByTitle = files.find(file => {
+        const nameWithoutExt = path.parse(file).name.toLowerCase().replace(/[^a-z0-9]+/g, '');
+        return nameWithoutExt === cleanTitleSlug || cleanTitleSlug.includes(nameWithoutExt);
+      });
+      if (matchedByTitle) return `/product-images/${matchedByTitle}`;
+    }
+
+    return null;
+  } catch (err) {
+    console.error('Error finding product image:', err);
+    return null;
+  }
+}
 
 // Helper to construct the dynamic text-based catalog content
 async function getCatalogText() {
@@ -424,7 +468,7 @@ app.post('/api/leads/lookup', async (req, res) => {
 
       // Fetch message history for this lead
       const messagesRes = await pool.query(
-        'SELECT sender, message_text as text, timestamp FROM chat_messages WHERE lead_id = $1 ORDER BY id ASC',
+        'SELECT sender, message_text as text, image_url, timestamp FROM chat_messages WHERE lead_id = $1 ORDER BY id ASC',
         [lead.id]
       );
 
@@ -593,7 +637,7 @@ app.get('/api/leads/:id', async (req, res) => {
     }
 
     const messagesResult = await pool.query(
-      'SELECT sender, message_text as text, timestamp FROM chat_messages WHERE lead_id = $1 ORDER BY id ASC',
+      'SELECT sender, message_text as text, image_url, timestamp FROM chat_messages WHERE lead_id = $1 ORDER BY id ASC',
       [id]
     );
 
@@ -632,7 +676,7 @@ app.post('/api/leads/:id/messages', async (req, res) => {
     const currentLead = leadResult.rows[0];
 
     const messagesResult = await pool.query(
-      'SELECT sender, message_text as text FROM chat_messages WHERE lead_id = $1 ORDER BY id ASC',
+      'SELECT sender, message_text as text, image_url FROM chat_messages WHERE lead_id = $1 ORDER BY id ASC',
       [id]
     );
     const history = messagesResult.rows;
@@ -804,10 +848,26 @@ Current known parameters:
       extracted = fallback.extractedData;
     }
 
+    // Product Image Lookup Logic
+    let botImageUrl = null;
+    const reqProduct = extracted.criteria?.product || text;
+    if (reqProduct) {
+      const pLower = reqProduct.toLowerCase();
+      const matchedProduct = catalogProducts.find(p => 
+        (p.sku && p.sku.toLowerCase() === pLower) || 
+        (p.title && p.title.toLowerCase().includes(pLower)) || 
+        (p.title && pLower.includes(p.title.toLowerCase())) ||
+        (p.sku && pLower.includes(p.sku.toLowerCase()))
+      );
+      if (matchedProduct) {
+        botImageUrl = getProductImageUrl(matchedProduct.sku, matchedProduct.title);
+      }
+    }
+
     // 3. Insert Bot response
     await pool.query(
-      'INSERT INTO chat_messages (lead_id, sender, message_text) VALUES ($1, $2, $3)',
-      [id, 'bot', reply]
+      'INSERT INTO chat_messages (lead_id, sender, message_text, image_url) VALUES ($1, $2, $3, $4)',
+      [id, 'bot', reply, botImageUrl || null]
     );
 
     // 4. Update Lead profile

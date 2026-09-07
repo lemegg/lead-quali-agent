@@ -145,6 +145,20 @@ const ChatInterface = ({ mode = 'admin' }) => {
             <div key={index} className={`chat-msg-row ${msg.sender}`}>
               <div className="chat-msg-bubble">
                 {msg.text}
+                {msg.image_url && (
+                  <div style={{ marginTop: '0.75rem', borderRadius: '8px', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.15)' }}>
+                    <img 
+                      src={msg.image_url} 
+                      alt="Product preview" 
+                      style={{ 
+                        width: '100%', 
+                        maxHeight: '220px', 
+                        objectFit: 'cover', 
+                        display: 'block' 
+                      }} 
+                    />
+                  </div>
+                )}
               </div>
             </div>
           ))}
