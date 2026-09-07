@@ -239,7 +239,7 @@ const Dashboard = () => {
         // Clean headers: lowercase, trimmed
         const headers = rows[0].map(h => h.toLowerCase().trim());
         
-        if (!headers.some(h => h.includes('title'))) {
+        if (!headers.some(h => h.includes('title') || h.includes('name') || h.includes('product'))) {
           setCsvError('CSV file must contain a "title" or "product name" column.');
           return;
         }
@@ -269,9 +269,9 @@ const Dashboard = () => {
             if (header.includes('sku')) {
               prod.sku = val;
             } 
-            // 2. Title matching (matches "title", "product title", "name", etc.)
-            else if (header === 'title' || header === 'name' || header === 'product name') {
-              prod.title = val;
+            // 2. Title matching (matches "title", "product title", "name", "product name", "product", etc.)
+            else if (header.includes('title') || header.includes('name') || header.includes('product')) {
+              if (!prod.title) prod.title = val;
             }
             // 3. Handle matching (useful for Shopify)
             else if (header === 'handle' || header.includes('handle')) {
